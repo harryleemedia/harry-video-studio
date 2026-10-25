@@ -1,0 +1,729 @@
+<!doctype html>
+<!--
+  editor-ui · With media（Harry 版）
+  媒体文件（放进项目的 media/ 文件夹，原件在 $ZH/assets/me/，不要改原件）：
+    - media/webcam.mp4    ← assets/me/webcam.mp4（Harry 对镜头讲话，4:5）
+    - media/roomblur.jpg  ← 由 webcam.mp4 截一帧，裁 16:9、高斯模糊（侧边补底用）
+    - media/thumb1-3.jpg  ← 由 webcam.mp4 截 3 帧（素材箱缩略图，16:9 模糊补边）
+    - media/filmstrip.jpg ← 由 webcam.mp4 截 10 帧拼成一条（V1 轨胶片条）
+  生成命令见本文件末尾注释。4:5 画面放进 16:9：中间是完整的 Harry（脸完整），两侧是同一画面的模糊放大。
+  字幕和下三分之一条都放在脸以下 / 脸的左侧，永远不盖脸。
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600,700,800&display=swap" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@1&display=swap" />
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<style>
+  /* Switzer comes from the Fontshare link above (free, loaded at render time, never shipped). This local() rule only satisfies the linter. */
+  @font-face { font-family: 'Switzer'; src: local('Switzer'); font-weight: 100; }
+  :root {
+    --win: #121212; --bar: #191919; --hair: #232323; --hair2: #262626; --panel: #1D1D1D;
+    --row: #232323; --rowline: #2B2B2B; --tile: #2D2D2D;
+    --text: #EDEDED; --body: #E2E2E2; --dim: #7E7E7E;
+    --vid: #4C478A; --vidE: #7C76C4; --aud: #234A3A; --audE: #3C7F61; --gfx: #3E414B; --gfxE: #646876;
+    --clay: #D97757;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: #070708; }
+  #root { position: relative; width: 1920px; height: 1080px; overflow: hidden;
+    background: radial-gradient(ellipse at 50% 50%, #1B1B1D 0%, #0d0d0e 60%, #070708 100%);
+    font-family: 'Switzer', sans-serif; color: var(--text); }
+  .a { position: absolute; }
+  #stage { position: absolute; inset: 0; perspective: 2600px; perspective-origin: 960px 540px; }
+  #app { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; transform-style: preserve-3d; }
+  #win { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; border-radius: 14px; background: var(--win);
+    border: 1px solid var(--hair2); box-shadow: 0 50px 160px rgba(0,0,0,0.75); }
+  .panel { position: absolute; border-radius: 8px; background: var(--panel); overflow: hidden; }
+  .phead { position: absolute; left: 0; top: 0; right: 0; height: 34px; border-bottom: 1px solid var(--hair2); }
+  .tab { position: absolute; top: 0; height: 34px; line-height: 34px; font-size: 14px; font-weight: 600; color: var(--dim); white-space: nowrap; }
+  .tab.on { color: var(--text); }
+  .uline { position: absolute; height: 2px; background: var(--text); border-radius: 1px; }
+  .lbl { position: absolute; white-space: nowrap; }
+  .tc { font-variant-numeric: tabular-nums; }
+  .pic { position: absolute; overflow: hidden; background: #000; border-radius: 2px; }
+  .frame { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; overflow: hidden; background: #0b0b0b; }
+  .foot { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+  .before { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+  .room { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; background: url(media/roomblur.jpg) center / cover no-repeat; filter: brightness(0.78) saturate(1.05); }
+  .fgv { position: absolute; left: 528px; top: 0; width: 864px; height: 1080px; object-fit: cover;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 7%, #000 93%, transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0, #000 7%, #000 93%, transparent 100%); }
+  .broll { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; opacity: 0; }
+  .broll svg, .thumb svg, .v2c svg, #ghost svg { display: block; width: 100%; height: 100%; }
+  .warm { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; background: #FF9448; mix-blend-mode: soft-light; opacity: 0; }
+  .caps { position: absolute; left: 0; top: 752px; width: 1920px; height: 130px; }
+  .cline { position: absolute; left: 0; top: 0; width: 1920px; height: 130px; display: flex; justify-content: center; align-items: center; gap: 4px; }
+  .w { display: inline-block; padding: 2px 16px 8px; border-radius: 12px; font-weight: 800; font-size: 72px; letter-spacing: -0.03em; line-height: 1;
+    color: #fff; text-shadow: 0 4px 22px rgba(0,0,0,0.6); }
+  .w.serif { font-family: 'Instrument Serif', serif; font-style: italic; font-weight: 400; font-size: 92px; letter-spacing: 0; padding: 0 18px 6px; }
+  .lt { position: absolute; left: 96px; top: 600px; width: 470px; height: 116px; }
+  .ltbar { position: absolute; left: 0; top: 0; width: 12px; height: 116px; background: var(--clay); transform-origin: 50% 100%; }
+  .ltplate { position: absolute; left: 12px; top: 0; width: 458px; height: 116px; background: rgba(16,16,16,0.84); }
+  .ltname { position: absolute; left: 40px; top: 14px; font-size: 50px; font-weight: 800; letter-spacing: -0.03em; color: #fff; white-space: nowrap; }
+  .ltsub { position: absolute; left: 41px; top: 72px; font-size: 25px; font-weight: 600; color: #cfcfcf; white-space: nowrap; }
+  .spark { position: absolute; }
+  .row { position: absolute; left: 16px; width: 432px; height: 56px; border-radius: 9px; background: var(--row); border: 1px solid var(--rowline); }
+  .clipbox { position: absolute; border-radius: 5px; overflow: hidden; }
+  .thumb { position: absolute; width: 196px; height: 110px; border-radius: 6px; overflow: hidden; background: #000; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .badge { position: absolute; right: 6px; bottom: 6px; padding: 2px 6px; border-radius: 4px; background: rgba(0,0,0,0.65); font-size: 12px; font-weight: 600; color: #eee; }
+  .aib { position: absolute; left: 6px; top: 6px; width: 24px; height: 24px; border-radius: 6px; background: #2D2D2D; display: flex; align-items: center; justify-content: center; }
+  .ring { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; border: 3px solid var(--clay); opacity: 0; }
+  #focus { position: absolute; border: 2px solid var(--clay); border-radius: 9px; box-shadow: 0 0 0 1px rgba(217,119,87,0.25), 0 0 24px rgba(217,119,87,0.12); opacity: 0; }
+  #cursor { position: absolute; left: 0; top: 0; width: 120px; height: 60px; transform-origin: 0 0; opacity: 0; }
+  #ghost { position: absolute; width: 120px; height: 68px; border-radius: 6px; overflow: hidden; border: 2px solid var(--clay); box-shadow: 0 18px 40px rgba(0,0,0,0.6); opacity: 0; }
+  #final { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; opacity: 0; }
+  #streaks, #grain { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; pointer-events: none; }
+  #grain { opacity: 0.07; mix-blend-mode: overlay; image-rendering: auto; }
+  #flash { position: absolute; inset: 0; background: radial-gradient(circle at 50% 50%, rgba(217,119,87,0.85) 0%, rgba(217,119,87,0.25) 35%, rgba(217,119,87,0) 70%);
+    mix-blend-mode: screen; opacity: 0; }
+  #vig { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 50%, rgba(0,0,0,0) 58%, rgba(0,0,0,0.42) 100%); pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="18" data-width="1920" data-height="1080">
+  <div id="stage"><div id="app"><div id="win"></div></div></div>
+
+  <!-- the footage frames (1920x1080 each). JS moves fSrc / fPrg into the monitors. -->
+  <div class="frame" id="fSrc"><div class="foot">
+    <div class="room"></div>
+    <video id="vSrc" class="clip fgv" src="media/webcam.mp4" muted playsinline data-start="0" data-duration="8.6" data-media-start="17"></video>
+  </div></div>
+  <div class="frame" id="fPrg"><div class="foot">
+    <div class="room"></div>
+    <video id="vPrg" class="clip fgv" src="media/webcam.mp4" muted playsinline data-start="0" data-duration="14.8" data-media-start="2"></video>
+  </div><div class="warm"></div><div class="before">
+    <div class="room"></div>
+    <video id="vPrgB" class="clip fgv" src="media/webcam.mp4" muted playsinline data-start="9.8" data-duration="1.3" data-media-start="11.8"></video>
+  </div></div>
+
+  <canvas id="streaks" width="1920" height="1080"></canvas>
+  <div id="final"><div class="frame" id="fFin"><div class="foot">
+    <div class="room"></div>
+    <video id="vFin" class="clip fgv" src="media/webcam.mp4" muted playsinline data-start="14.5" data-duration="3.5" data-media-start="16.5"></video>
+  </div><div class="warm"></div></div></div>
+  <div id="flash"></div>
+  <canvas id="grain" width="480" height="270"></canvas>
+  <div id="vig"></div>
+</div>
+<script>
+/* ---------- one clock (inline copy of studio.js) ---------- */
+(function () {
+  const R = () => document.querySelector('[data-composition-id]');
+  const cache = {};
+  const S = {
+    get root() { return R(); }, get D() { return +R().dataset.duration; },
+    ease(n) { return cache[n] || (cache[n] = n === 'none' ? (p) => p : gsap.parseEase(n)); },
+    seg(t, s, d, e) { const p = Math.min(1, Math.max(0, (t - s) / d)); return S.ease(e || 'power3.out')(p); },
+    mix(a, b, p) { return a + (b - a) * p; },
+    rng(seed) { let a = seed >>> 0; return function () { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; },
+    play(render) {
+      const D = S.D, clock = { t: 0 }, tl = gsap.timeline({ paused: true });
+      const draw = () => render(clock.t);
+      tl.to(clock, { t: D, duration: D, ease: 'none', onUpdate: draw }, 0);
+      draw();
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+      window.addEventListener('load', draw);
+      window.__timelines = window.__timelines || {};
+      window.__timelines["main"] = tl;
+      return tl;
+    },
+  };
+  window.STUDIO = S;
+})();
+
+const S = STUDIO, seg = S.seg, mix = S.mix;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const px = (v) => v + 'px';
+const $ = (id) => document.getElementById(id);
+function el(parent, cls, css, html) { const d = document.createElement('div'); if (cls) d.className = cls;
+  Object.assign(d.style, css || {}); if (html != null) d.innerHTML = html; parent.appendChild(d); return d; }
+const CLAY = '#D97757';
+
+/* ---------- drawings ---------- */
+function sparkSVG(color, sw) {
+  let p = '';
+  for (let k = 0; k < 12; k++) { const a = k * Math.PI / 6 + 0.13, L = k % 2 ? 34 : 46;
+    p += `<line x1="${(Math.cos(a) * 9).toFixed(1)}" y1="${(Math.sin(a) * 9).toFixed(1)}" x2="${(Math.cos(a) * L).toFixed(1)}" y2="${(Math.sin(a) * L).toFixed(1)}"/>`; }
+  return `<svg viewBox="-50 -50 100 100" width="100%" height="100%" style="display:block;overflow:visible"><g stroke="${color}" stroke-width="${sw || 9}" stroke-linecap="round">${p}</g></svg>`;
+}
+function landscapeSVG() {
+  const r = S.rng(11); let trees = '';
+  for (let k = 0; k < 16; k++) { const x = 80 + k * 118 + r() * 50, y = 700 + Math.sin(k * 0.9) * 50 + r() * 40, h = 90 + r() * 70;
+    trees += `<path d="M${x} ${y - h} L${x - h * 0.28} ${y} L${x + h * 0.28} ${y} Z" fill="#5E7B60"/><rect x="${x - 5}" y="${y}" width="10" height="22" fill="#6C5E4B"/>`; }
+  return `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice"><rect width="1920" height="1080" fill="#EDE6CF"/>
+  <circle cx="1360" cy="300" r="150" fill="#F6E3B8"/><circle cx="1360" cy="300" r="105" fill="#F2D49A"/>
+  <path d="M0 560 L240 420 L420 520 L640 380 L880 540 L1120 430 L1380 560 L1620 440 L1920 540 L1920 1080 L0 1080 Z" fill="#CAD4B6"/>
+  <path d="M0 680 C300 560 520 640 760 600 C1000 560 1240 660 1500 600 C1700 560 1820 600 1920 620 L1920 1080 L0 1080 Z" fill="#ABBE98"/>
+  <path d="M0 820 C360 720 700 800 980 760 C1260 720 1560 800 1920 760 L1920 1080 L0 1080 Z" fill="#91A982"/>
+  <path d="M900 620 C820 700 1060 760 900 840 C760 910 1080 980 980 1080 L1180 1080 C1260 980 960 920 1100 840 C1240 760 990 700 1040 620 Z" fill="#D6E6DF"/>
+  ${trees}
+  <path d="M520 220 l22 14 l22 -14 M600 180 l16 10 l16 -10 M1640 160 l18 12 l18 -12" stroke="#6B6A5A" stroke-width="5" fill="none" stroke-linecap="round"/></svg>`;
+}
+function citySVG() {
+  const r = S.rng(23), W = 150, H = 75, ox = 960, oy = 150; let g = '';
+  for (let s = 0; s < 14; s++) for (let i = 0; i < 8; i++) { const j = s - i; if (j < 0 || j > 7) continue;
+    const x = ox + (i - j) * W / 2, y = oy + (i + j) * H / 2, v = r();
+    const top = (yy) => `M${x} ${yy} L${x + W / 2} ${yy + H / 2} L${x} ${yy + H} L${x - W / 2} ${yy + H / 2} Z`;
+    if (v < 0.22) { g += `<path d="${top(y)}" fill="#DCEDD3" stroke="#C7DABD" stroke-width="2"/><circle cx="${x}" cy="${y + H / 2 - 12}" r="16" fill="#9CC48E"/>`; continue; }
+    const h = 40 + r() * 190, yt = y - h;
+    g += `<path d="M${x - W / 2 + 8} ${y + H / 2} L${x} ${y + H - 4} L${x} ${y + H - 4 - h} L${x - W / 2 + 8} ${y + H / 2 - h} Z" fill="#D5CFE3"/>`;
+    g += `<path d="M${x} ${y + H - 4} L${x + W / 2 - 8} ${y + H / 2} L${x + W / 2 - 8} ${y + H / 2 - h} L${x} ${y + H - 4 - h} Z" fill="#B6AECF"/>`;
+    g += `<path d="M${x} ${yt + 4} L${x + W / 2 - 8} ${yt + H / 2} L${x} ${yt + H - 4} L${x - W / 2 + 8} ${yt + H / 2} Z" fill="#F4F1EA"/>`;
+    for (let f = 1; f < h / 34; f++) g += `<path d="M${x + 14} ${y + H - 4 - f * 34 - 8} L${x + W / 2 - 20} ${y + H / 2 - f * 34 + 2}" stroke="#9E96BE" stroke-width="5"/>`;
+  }
+  return `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice"><rect width="1920" height="1080" fill="#C7E6EC"/>
+  <path d="M960 110 L1640 450 L960 790 L280 450 Z" fill="#E7F1E0" transform="translate(0 70)"/>${g}</svg>`;
+}
+function codeSVG() {
+  let lines = ''; const ws = [420, 300, 560, 360, 480, 250, 520, 340];
+  const cs = ['#8FB7FF', '#E6EAF2', '#F2A285', '#E6EAF2', '#8FB7FF', '#E6EAF2', '#9FE0B9', '#E6EAF2'];
+  ws.forEach((w, k) => { lines += `<rect x="${830 + (k % 3 === 1 ? 50 : 0)}" y="${390 + k * 46}" width="${w}" height="18" rx="9" fill="${cs[k]}" opacity="0.9"/>`; });
+  return `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice"><rect width="1920" height="1080" fill="#EEF0F4"/>
+  <rect x="220" y="170" width="1480" height="740" rx="36" fill="#fff" stroke="#DDE1E8" stroke-width="3"/>
+  <rect x="290" y="232" width="44" height="44" rx="10" fill="#1F2A44"/><text x="356" y="268" font-family="Switzer, sans-serif" font-weight="700" font-size="38" fill="#1F2430">Code</text>
+  <path d="M420 560 C520 560 560 470 660 470 L760 470" stroke="#C9CDD6" stroke-width="6" fill="none"/>
+  <circle cx="400" cy="560" r="62" fill="#FBEDE7"/><g transform="translate(400 560) scale(0.9)">${sparkSVG(CLAY, 9).replace(/<svg[^>]*>|<\/svg>/g, '')}</g>
+  <rect x="760" y="330" width="860" height="500" rx="24" fill="#1F2A44"/>${lines}</svg>`;
+}
+const BROLL = [landscapeSVG(), citySVG(), codeSVG()];
+
+/* ---------- a footage frame: grade, b-roll, wipe, spark, lower third, captions ---------- */
+function makeFrame(fr, o) {
+  const F = { fr, foot: fr.querySelector('.foot'), warm: fr.querySelector('.warm'), before: fr.querySelector('.before') };
+  F.broll = BROLL.map((svg) => el(F.foot, 'broll', {}, svg));
+  if (o.wipe) {
+    F.wline = el(fr, 'a', { left: 0, top: 0, width: '5px', height: '1080px', background: '#fff', boxShadow: '0 0 18px rgba(0,0,0,0.5)', opacity: 0 });
+    F.whandle = el(fr, 'a', { left: 0, top: px(440), width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(255,255,255,0.18)',
+      border: '5px solid #fff', opacity: 0 }, '<svg viewBox="0 0 54 54" width="54" height="54"><path d="M20 18 L11 27 L20 36 M34 18 L43 27 L34 36" stroke="#fff" stroke-width="4.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+    const tag = (txt, side) => el(fr, 'a', Object.assign({ top: '40px', padding: '8px 18px', borderRadius: '10px', background: 'rgba(10,10,10,0.55)',
+      fontSize: '34px', fontWeight: 650, color: '#fff', opacity: 0 }, side), txt);
+    F.tagB = tag('Before', { left: '40px' }); F.tagA = tag('After', { right: '40px' });
+  }
+  if (o.spark) F.spark = el(fr, 'spark', { left: px(1595), top: px(610), width: '110px', height: '110px', opacity: 0 }, sparkSVG(CLAY, 8));
+  if (o.lt) {
+    F.lt = el(fr, 'lt'); F.ltbar = el(F.lt, 'ltbar'); F.ltplate = el(F.lt, 'ltplate');
+    F.ltname = el(F.ltplate, 'ltname', {}, 'Harry Lee'); F.ltsub = el(F.ltplate, 'ltsub', {}, '@harryleeai');
+  }
+  if (o.caps) {
+    const caps = el(fr, 'caps');
+    const mk = (words) => { const line = el(caps, 'cline');
+      return words.map((w) => { const s = document.createElement('span'); s.className = 'w' + (w === 'Claude' ? ' serif' : ''); s.textContent = w; line.appendChild(s); return s; }); };
+    F.L1 = mk(['Everything', "you're", 'seeing']); F.L2 = mk(['was', 'built', 'by', 'Claude']);
+  }
+  return F;
+}
+function drawFrame(F, st, t) {
+  const g = st.grade;
+  F.foot.style.filter = g > 0.001 ? `saturate(${1 + 0.24 * g}) sepia(${0.14 * g}) contrast(${1 + 0.08 * g}) brightness(${1 + 0.03 * g})` : 'none';
+  if (F.warm) F.warm.style.opacity = 0.32 * g;
+  F.broll.forEach((b, i) => { b.style.opacity = st.broll === i ? 1 : 0; });
+  if (F.before) {
+    const on = st.wipe != null && st.wipe.a > 0;
+    F.before.style.opacity = on ? 1 : 0;
+    const x = on ? st.wipe.x * 1920 : 0;
+    F.before.style.clipPath = `inset(0 ${1920 - x}px 0 0)`;
+    F.wline.style.opacity = on ? st.wipe.a : 0; F.wline.style.transform = `translateX(${x - 2.5}px)`;
+    F.whandle.style.opacity = on ? st.wipe.a : 0; F.whandle.style.transform = `translateX(${x - 32}px) scale(${st.wipe ? st.wipe.press : 1})`;
+    F.tagB.style.opacity = on ? st.wipe.a : 0; F.tagA.style.opacity = on ? st.wipe.a : 0;
+  }
+  if (F.spark) { const p = st.spark; F.spark.style.opacity = p > 0 ? 1 : 0;
+    F.spark.style.transform = `scale(${S.ease('back.out(2)')(p)}) rotate(${t * 40}deg)`; }
+  if (F.lt) {
+    const L = st.lt, bar = seg(L, 0, 0.35, 'expo.out'), pl = seg(L, 0.12, 0.6, 'expo.out'), tx = seg(L, 0.3, 0.55, 'expo.out');
+    F.lt.style.opacity = L > 0 ? 1 : 0;
+    F.ltbar.style.transform = `scaleY(${bar})`;
+    F.ltplate.style.clipPath = `inset(0 ${(1 - pl) * 100}% 0 0)`;
+    F.ltname.style.transform = `translateY(${(1 - tx) * 30}px)`; F.ltname.style.opacity = tx;
+    const ts = seg(L, 0.4, 0.55, 'expo.out'); F.ltsub.style.transform = `translateY(${(1 - ts) * 24}px)`; F.ltsub.style.opacity = ts;
+  }
+  if (F.L1) {
+    const c = st.caps; // {l1:[times], l1out, l2:[times], pillOff}
+    const word = (sp, tin, tout, pillA) => {
+      const p = seg(t, tin, 0.34, 'back.out(2)');
+      const o = tout != null ? seg(t, tout, 0.26, 'power2.in') : 0;
+      sp.style.opacity = t < tin ? 0 : clamp(seg(t, tin, 0.12, 'none') * (1 - o), 0, 1);
+      sp.style.transform = `translateY(${(1 - p) * 26 - o * 14}px) scale(${0.82 + 0.18 * p})`;
+      sp.style.background = pillA > 0 ? `rgba(217,119,87,${(0.92 * pillA).toFixed(3)})` : 'transparent';
+    };
+    const live = (times, i, end) => { // pill on the newest word until the next one lands
+      if (t < times[i]) return 0; const nx = i + 1 < times.length ? times[i + 1] : end;
+      return 1 - seg(t, nx, 0.12, 'none'); };
+    F.L1.forEach((sp, i) => word(sp, c.l1[i], c.l1out, live(c.l1, i, c.l1out)));
+    F.L2.forEach((sp, i) => word(sp, c.l2[i], null, live(c.l2, i, c.pillOff)));
+  }
+}
+
+/* ---------- the app ---------- */
+const app = $('app'), win = $('win');
+// title bar
+el(win, 'a', { left: 0, top: px(44), width: '1920px', height: '1px', background: 'var(--hair2)' });
+[22, 44, 66].forEach((x) => el(win, 'a', { left: px(x - 6), top: px(16), width: '12px', height: '12px', borderRadius: '50%', background: '#3A3A3A' }));
+const TOPT = ['Import', 'Edit', 'Export'].map((s, i) => el(win, 'lbl', { left: px(840 + i * 92), width: '70px', textAlign: 'center', top: px(12), fontSize: '15px', fontWeight: 600, color: 'var(--dim)' }, s));
+const topLine = el(win, 'uline', { top: px(38), width: '34px' });
+
+const R = { SRC: { x: 8, y: 52, w: 552, h: 560 }, PRG: { x: 568, y: 52, w: 872, h: 560 }, AI: { x: 1448, y: 52, w: 464, h: 1020 },
+  BIN: { x: 8, y: 620, w: 424, h: 452 }, TOOLS: { x: 440, y: 620, w: 40, h: 452 }, TL: { x: 488, y: 620, w: 952, h: 452 } };
+const ORDER = ['SRC', 'PRG', 'BIN', 'TOOLS', 'TL', 'AI'], LAND = [-0.32, -0.25, -0.18, 0.02, 0.1, 0.34];
+const P = {};
+ORDER.forEach((k) => { const r = R[k]; P[k] = el(app, 'panel', { left: px(r.x), top: px(r.y), width: px(r.w), height: px(r.h) }); });
+const head = (p) => el(p, 'phead');
+function tabs(p, list, x0) { const out = []; let x = x0 || 16;
+  list.forEach((s) => { const d = el(p, 'tab', { left: px(x) }, s); out.push(d); x += s.length * 8 + 30; }); return out; }
+
+// icons
+const IC = {
+  prev: '<path d="M5 4v12M16 4l-8 6 8 6z" fill="#cfcfcf" stroke="#cfcfcf" stroke-width="1.6" stroke-linejoin="round"/>',
+  play: '<path d="M6 3.5l11 6.5-11 6.5z" fill="#e8e8e8"/>',
+  next: '<path d="M15 4v12M4 4l8 6-8 6z" fill="#cfcfcf" stroke="#cfcfcf" stroke-width="1.6" stroke-linejoin="round"/>',
+  lock: '<rect x="5" y="9" width="10" height="8" rx="1.5" fill="none" stroke="#6f6f6f" stroke-width="1.6"/><path d="M7 9V6.5a3 3 0 016 0V9" fill="none" stroke="#6f6f6f" stroke-width="1.6"/>',
+  eye: '<path d="M2 10s3-5 8-5 8 5 8 5-3 5-8 5-8-5-8-5z" fill="none" stroke="#6f6f6f" stroke-width="1.6"/><circle cx="10" cy="10" r="2.2" fill="#6f6f6f"/>',
+  spk: '<path d="M4 8h3l4-3v10l-4-3H4z" fill="none" stroke="#6f6f6f" stroke-width="1.6" stroke-linejoin="round"/>',
+  search: '<circle cx="9" cy="9" r="5.5" fill="none" stroke="#7a7a7a" stroke-width="1.8"/><path d="M13 13l4 4" stroke="#7a7a7a" stroke-width="1.8" stroke-linecap="round"/>',
+  folder: '<path d="M3 6h5l2 2h7v8H3z" fill="none" stroke="#8a8a8a" stroke-width="1.5" stroke-linejoin="round"/>',
+  scissors: '<circle cx="6" cy="6" r="2.6" fill="none" stroke="#bdbdbd" stroke-width="1.7"/><circle cx="6" cy="14" r="2.6" fill="none" stroke="#bdbdbd" stroke-width="1.7"/><path d="M8 7.5L17 15M8 12.5L17 5" stroke="#bdbdbd" stroke-width="1.7" stroke-linecap="round"/>',
+  film: '<rect x="3" y="4.5" width="14" height="11" rx="1.5" fill="none" stroke="#bdbdbd" stroke-width="1.7"/><path d="M6.5 4.5v11M13.5 4.5v11" stroke="#bdbdbd" stroke-width="1.5"/>',
+  cc: '<rect x="3" y="4.5" width="14" height="11" rx="2" fill="none" stroke="#bdbdbd" stroke-width="1.7"/><path d="M6 9h8M6 12h5" stroke="#bdbdbd" stroke-width="1.6" stroke-linecap="round"/>',
+  half: '<circle cx="10" cy="10" r="6.5" fill="none" stroke="#bdbdbd" stroke-width="1.7"/><path d="M10 3.5a6.5 6.5 0 010 13z" fill="#bdbdbd"/>',
+  lt: '<rect x="3" y="4.5" width="14" height="11" rx="1.5" fill="none" stroke="#bdbdbd" stroke-width="1.7"/><path d="M5.5 12.5h7" stroke="#bdbdbd" stroke-width="2.2" stroke-linecap="round"/>',
+  up: '<path d="M10 13V4M6 8l4-4 4 4M4 12v4h12v-4" fill="none" stroke="#bdbdbd" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>',
+};
+const svgI = (k, s) => `<svg viewBox="0 0 20 20" width="${s || 20}" height="${s || 20}" style="display:block">${IC[k]}</svg>`;
+function transport(p, cx, y) { ['prev', 'play', 'next'].forEach((k, i) => el(p, 'a', { left: px(cx - 50 + i * 40), top: px(y) }, svgI(k, 20))); }
+
+/* Source panel */
+head(P.SRC); const srcTabs = tabs(P.SRC, ['Source', 'Effect Controls']); const srcLine = el(P.SRC, 'uline', { top: '32px' });
+const srcPic = el(P.SRC, 'pic', { left: '8px', top: '84px', width: '536px', height: '301.5px' });
+const fSrc = $('fSrc'); srcPic.appendChild(fSrc); fSrc.style.transform = `scale(${536 / 1920})`;
+const srcTC = el(P.SRC, 'lbl tc', { left: '16px', top: '522px', fontSize: '13px', fontWeight: 500, color: '#cfcfcf' });
+const srcTr = el(P.SRC, 'a', { left: 0, top: 0 }); transport(srcTr, 276, 520);
+// effect controls (colour grade)
+const fx = el(P.SRC, 'a', { left: 0, top: '34px', width: '552px', height: '526px', opacity: 0 });
+el(fx, 'lbl', { left: '24px', top: '30px', fontSize: '21px', fontWeight: 700 }, 'Color Grade');
+el(fx, 'a', { left: '496px', top: '30px', width: '30px', height: '24px', borderRadius: '5px', background: '#2A2A2A', fontSize: '12px', color: '#9a9a9a', textAlign: 'center', lineHeight: '24px', fontStyle: 'italic' }, 'fx');
+const SL = ['Temperature', 'Saturation', 'Contrast'].map((name, i) => {
+  const y = 96 + i * 104;
+  el(fx, 'lbl', { left: '24px', top: px(y), fontSize: '16px', fontWeight: 600, color: '#d6d6d6' }, name);
+  const val = el(fx, 'lbl tc', { right: '24px', top: px(y), fontSize: '15px', fontWeight: 600, color: '#d6d6d6' }, '0.0');
+  const track = el(fx, 'a', { left: '24px', top: px(y + 40), width: '504px', height: '6px', borderRadius: '3px',
+    background: i === 0 ? 'linear-gradient(90deg,#4F79C9,#8A8F9C 50%,#D9B25A)' : '#3A3A3A' });
+  const fill = el(fx, 'a', { left: '276px', top: px(y + 40), width: '0px', height: '6px', background: i === 0 ? 'transparent' : '#9a9a9a', borderRadius: '3px' });
+  const knob = el(fx, 'a', { left: '0px', top: px(y + 34), width: '18px', height: '18px', borderRadius: '50%', background: '#f2f2f2', boxShadow: '0 2px 6px rgba(0,0,0,0.6)' });
+  return { val, track, fill, knob, y: y + 43 };
+});
+
+/* Program panel */
+const prgHead = head(P.PRG); const prgTab = tabs(P.PRG, ['Program']); prgTab[0].classList.add('on'); const prgLine = el(P.PRG, 'uline', { top: '32px', left: '16px', width: '58px' });
+const prgPic = el(P.PRG, 'pic', { left: '16px', top: '42px', width: '840px', height: '472.5px' });
+const fPrg = $('fPrg'); prgPic.appendChild(fPrg); fPrg.style.transform = `scale(${840 / 1920})`;
+const prgTC = el(P.PRG, 'lbl tc', { left: '16px', top: '528px', fontSize: '13px', fontWeight: 500, color: '#cfcfcf' });
+const prgTr = el(P.PRG, 'a', { left: 0, top: 0 }); transport(prgTr, 436, 526);
+const expBarBg = el(P.PRG, 'a', { left: '16px', top: '518px', width: '840px', height: '5px', background: '#2A2A2A', borderRadius: '3px', opacity: 0 });
+const expBar = el(expBarBg, 'a', { left: 0, top: 0, width: '840px', height: '5px', background: CLAY, borderRadius: '3px', transformOrigin: '0 50%' });
+const expPct = el(P.PRG, 'lbl tc', { right: '16px', top: '527px', fontSize: '15px', fontWeight: 700, color: '#eee', opacity: 0 });
+const prgChrome = [prgHead, prgTab[0], prgLine, prgTr];
+
+/* Project bin */
+head(P.BIN); tabs(P.BIN, ['Project'])[0].classList.add('on'); el(P.BIN, 'uline', { top: '32px', left: '16px', width: '50px' });
+el(P.BIN, 'a', { left: '12px', top: '44px', width: '400px', height: '32px', borderRadius: '6px', background: '#232323' }, `<div style="position:absolute;left:8px;top:6px">${svgI('search', 20)}</div>`);
+const BINI = [{ k: 'h', src: 'media/thumb1.jpg', d: '0:08' }, { k: 'h', src: 'media/thumb2.jpg', d: '0:08' }, { k: 0, d: '0:14' }, { k: 1, d: '0:17' }, { k: 2, d: '0:14' }, { k: 'h', src: 'media/thumb3.jpg', d: '0:08' }];
+const thumbs = BINI.map((it, i) => {
+  const x = 12 + (i % 2) * 204, y = 88 + Math.floor(i / 2) * 118;
+  const th = el(P.BIN, 'thumb', { left: px(x), top: px(y) }, it.k === 'h' ? `<img src="${it.src}" alt="">` : BROLL[it.k]);
+  if (it.k !== 'h') el(th, 'aib', {}, `<div style="width:15px;height:15px">${sparkSVG(CLAY, 10)}</div>`);
+  el(th, 'badge tc', {}, it.d);
+  const ol = el(P.BIN, 'a', { left: px(x - 2), top: px(y - 2), width: '200px', height: '114px', borderRadius: '8px', border: `2px solid ${CLAY}`, opacity: 0 });
+  return { th, ol, cx: R.BIN.x + x + 98, cy: R.BIN.y + y + 55 };
+});
+
+/* Tool strip */
+const TOOLIC = ['<path d="M6 3l9 7-4 1 2.5 5-2 1-2.5-5L6 15z" fill="#d6d6d6"/>', '<path d="M3 5h14M3 10h9M3 15h14" stroke="#9a9a9a" stroke-width="1.7" stroke-linecap="round"/>',
+  '<path d="M3 10h11M10 6l4 4-4 4M17 4v12" stroke="#9a9a9a" stroke-width="1.7" fill="none" stroke-linecap="round"/>', '<path d="M5 15L15 5M12 4l4 4" stroke="#9a9a9a" stroke-width="1.8" stroke-linecap="round"/>',
+  '<path d="M7 3v14M13 3v14M3 7h14M3 13h14" stroke="#9a9a9a" stroke-width="1.5"/>', '<path d="M5 16L10 4l5 12M7 12h6" stroke="#9a9a9a" stroke-width="1.7" fill="none" stroke-linecap="round"/>',
+  '<path d="M7 17V9a1.5 1.5 0 013 0V4.5a1.5 1.5 0 013 0V10l2-1.5a1.4 1.4 0 012 2L13 17z" stroke="#9a9a9a" stroke-width="1.5" fill="none" stroke-linejoin="round"/>', '<path d="M4 4h12M10 4v13" stroke="#9a9a9a" stroke-width="1.8" stroke-linecap="round"/>'];
+const toolSel = el(P.TOOLS, 'a', { left: '6px', top: '12px', width: '28px', height: '28px', borderRadius: '6px', background: '#2D2D2D' });
+TOOLIC.forEach((p, i) => el(P.TOOLS, 'a', { left: '10px', top: px(16 + i * 44) }, `<svg viewBox="0 0 20 20" width="20" height="20">${p}</svg>`));
+
+/* Timeline */
+head(P.TL); tabs(P.TL, ['Intro'])[0].classList.add('on'); el(P.TL, 'uline', { top: '32px', left: '16px', width: '34px' });
+const tlTC = el(P.TL, 'lbl tc', { left: '14px', top: '44px', fontSize: '22px', fontWeight: 700, color: 'var(--text)' });
+const tlDur = el(P.TL, 'lbl tc', { right: '14px', top: '50px', fontSize: '13px', fontWeight: 500, color: '#9a9a9a' });
+['<path d="M5 4v6a5 5 0 0010 0V4M5 4h3M12 4h3" stroke="#9a9a9a" stroke-width="1.6" fill="none"/>', '<circle cx="10" cy="10" r="6.5" stroke="#9a9a9a" stroke-width="1.6" fill="none"/><path d="M10 7v6M7 10h6" stroke="#9a9a9a" stroke-width="1.6"/>',
+  '<rect x="5" y="5" width="10" height="10" rx="1" stroke="#9a9a9a" stroke-width="1.6" fill="none"/>', '<path d="M5 13l5-5 5 5" stroke="#9a9a9a" stroke-width="1.6" fill="none"/>']
+  .forEach((p, i) => el(P.TL, 'a', { left: px(450 + i * 30), top: '50px' }, `<svg viewBox="0 0 20 20" width="18" height="18">${p}</svg>`));
+const X0 = 100, PXS = 27;
+const tx = (s) => X0 + s * PXS;                 // timeline-local x of a time in seconds
+const ruler = el(P.TL, 'a', { left: 0, top: '80px', width: '952px', height: '22px' });
+for (let s = 0; s <= 31; s++) { const big = s % 5 === 0;
+  el(ruler, 'a', { left: px(tx(s)), top: px(big ? 12 : 16), width: '1px', height: px(big ? 10 : 6), background: big ? '#555' : '#383838' });
+  if (big && s < 30) el(ruler, 'lbl tc', { left: px(tx(s) + 4), top: '0px', fontSize: '10px', color: '#6f6f6f' }, `00:${String(s).padStart(2, '0')}`); }
+const TR = { V3: { y: 106, h: 44 }, V2: { y: 156, h: 44 }, V1: { y: 206, h: 52 }, A1: { y: 266, h: 56 }, A2: { y: 328, h: 56 } };
+Object.entries(TR).forEach(([k, r]) => {
+  el(P.TL, 'a', { left: '0px', top: px(r.y + r.h + 2), width: '952px', height: '1px', background: '#202020' });
+  el(P.TL, 'a', { left: '12px', top: px(r.y + r.h / 2 - 10) }, svgI('lock', 20));
+  el(P.TL, 'a', { left: '38px', top: px(r.y + r.h / 2 - 10), width: '30px', height: '20px', borderRadius: '4px', background: '#2A2A2A', fontSize: '11px', fontWeight: 650, color: '#c4c4c4', textAlign: 'center', lineHeight: '20px' }, k);
+  el(P.TL, 'a', { left: '72px', top: px(r.y + r.h / 2 - 10) }, svgI(k[0] === 'V' ? 'eye' : 'spk', 20));
+});
+el(P.TL, 'a', { left: '100px', top: '414px', width: '820px', height: '6px', borderRadius: '3px', background: '#232323' });
+el(P.TL, 'a', { left: '130px', top: '414px', width: '400px', height: '6px', borderRadius: '3px', background: '#3A3A3A' });
+
+// waveform strings (full 30 s, drawn once)
+function wave(seed, quietRanges, h, color) {
+  const r = S.rng(seed); let d = '';
+  for (let x = 0; x < 30 * PXS; x += 3) { const s = x / PXS; let a = 0.25 + 0.75 * Math.abs(Math.sin(s * 2.1) * Math.sin(s * 0.7 + 1)) * (0.55 + 0.45 * r());
+    if (quietRanges.some(([q0, q1]) => s > q0 + 0.1 && s < q1 - 0.1)) a = 0.05 + 0.04 * r();
+    const hh = Math.max(1.5, a * (h / 2 - 4)); d += `M${x + 1} ${(h / 2 - hh).toFixed(1)}V${(h / 2 + hh).toFixed(1)}`; }
+  return `<svg width="${30 * PXS}" height="${h}" style="position:absolute;left:0;top:0"><path d="${d}" stroke="${color}" stroke-width="2"/></svg>`;
+}
+const SIL = [[6, 9], [14, 17], [22.5, 25.5]], SEG = [[0, 6], [9, 14], [17, 22.5], [25.5, 30]], PACK = [0, 6, 11, 16.5];
+const W1 = wave(5, SIL, TR.A1.h - 6, '#78C99D'), W2 = wave(9, [], TR.A2.h - 6, '#6DBA92');
+const tlClips = el(P.TL, 'a', { left: 0, top: 0, width: '952px', height: '452px' });
+function vClip(parent, s0, s1, row) { const r = TR[row];
+  const d = el(parent, 'clipbox', { left: px(tx(s0)), top: px(r.y + 3), width: px((s1 - s0) * PXS), height: px(r.h - 6) }); return d; }
+const pieces = [];   // V1 + A1 pieces, in order: seg0, sil0, seg1, sil1, ...
+for (let i = 0; i < 7; i++) {
+  const isSil = i % 2 === 1, rng = isSil ? SIL[(i - 1) / 2] : SEG[i / 2];
+  const v = vClip(tlClips, rng[0], rng[1], 'V1');
+  Object.assign(v.style, { background: `url(media/filmstrip.jpg) ${-rng[0] * PXS}px 0 / auto 100% repeat-x, var(--vid)`, borderTop: '1.5px solid var(--vidE)', borderBottom: '1.5px solid var(--vidE)' });
+  const a = vClip(tlClips, rng[0], rng[1], 'A1');
+  Object.assign(a.style, { background: 'var(--aud)', borderTop: '1.5px solid var(--audE)', borderBottom: '1.5px solid var(--audE)' });
+  el(a, 'a', { left: px(-rng[0] * PXS), top: '0px' }, W1);
+  let hv = null, ha = null;
+  if (isSil) { const hatch = { background: 'repeating-linear-gradient(135deg, rgba(217,119,87,0.62) 0 7px, rgba(60,30,22,0.55) 7px 14px)', border: `1.5px solid ${CLAY}`, borderRadius: '5px', opacity: 0 };
+    hv = el(v, 'a', Object.assign({ left: 0, top: 0, right: 0, bottom: 0 }, hatch)); ha = el(a, 'a', Object.assign({ left: 0, top: 0, right: 0, bottom: 0 }, hatch)); }
+  pieces.push({ v, a, isSil, rng, hv, ha, k: isSil ? (i - 1) / 2 : i / 2 });
+}
+const a2 = vClip(tlClips, 0, 30, 'A2'); Object.assign(a2.style, { background: 'var(--aud)', border: '1.5px solid var(--audE)' }); el(a2, 'a', { left: 0, top: 0 }, W2);
+// razor flashes: two clay lines per silence
+const razors = SIL.map(() => [0, 1].map(() => el(tlClips, 'a', { top: px(TR.V1.y - 6), width: '3px', height: px(TR.A1.y + TR.A1.h - TR.V1.y + 12), background: CLAY, borderRadius: '2px', opacity: 0, boxShadow: '0 0 12px rgba(217,119,87,0.8)' })));
+const joints = [1, 2, 3].map(() => el(tlClips, 'a', { top: px(TR.V1.y - 4), width: '2px', height: px(TR.A1.y + TR.A1.h - TR.V1.y + 8), background: CLAY, opacity: 0 }));
+// V2 b-roll clips
+const V2C = [[7.6, 10.4], [10.9, 13.4], [14.2, 16.8]];
+const v2 = V2C.map(([s0, s1], k) => { const d = vClip(tlClips, s0, s1, 'V2'); d.classList.add('v2c');
+  Object.assign(d.style, { border: '1.5px solid var(--gfxE)', opacity: 0 }); d.innerHTML = BROLL[k];
+  el(d, 'a', { left: 0, top: 0, right: 0, height: '3px', background: CLAY }); return d; });
+// V3 caption blocks
+const V3B = []; for (let i = 0; i < 12; i++) { const s0 = 3.0 + i * 1.05; const d = vClip(tlClips, s0, s0 + 0.98, 'V3');
+  Object.assign(d.style, { background: 'var(--gfx)', border: '1.5px solid var(--gfxE)', opacity: 0, fontSize: '13px', color: '#c9c9c9', textAlign: 'center', lineHeight: '30px', letterSpacing: '2px' });
+  d.innerHTML = '<div style="position:absolute;left:0;top:0;right:0;height:3px;background:#D97757"></div>•••'; V3B.push(d); }
+// playhead
+const ph = el(P.TL, 'a', { left: 0, top: '80px', width: '2px', height: '312px', background: '#fff' });
+el(ph, 'a', { left: '-6px', top: '-2px', width: '14px', height: '16px', background: '#f2f2f2', clipPath: 'polygon(0 0,100% 0,100% 60%,50% 100%,0 60%)', borderRadius: '2px' });
+// mascot spark + its shadow
+const mShadow = el(P.TL, 'a', { left: 0, top: 0, width: '30px', height: '8px', borderRadius: '50%', background: 'rgba(0,0,0,0.55)', opacity: 0 });
+const mascot = el(P.TL, 'a', { left: 0, top: 0, width: '36px', height: '36px', opacity: 0, transformOrigin: '50% 100%' }, sparkSVG(CLAY, 10));
+
+/* AI panel */
+head(P.AI); const aiTabs = [el(P.AI, 'tab', { left: '16px' }, 'Effects'), el(P.AI, 'tab', { left: '86px' }, `<span style="display:inline-block;width:14px;height:14px;vertical-align:-2px;margin-right:6px">${sparkSVG(CLAY, 10)}</span>Claude`)];
+const aiLine = el(P.AI, 'uline', { top: '32px' });
+const fxList = el(P.AI, 'a', { left: 0, top: '44px', width: '464px', height: '220px' });
+['Presets', 'Audio Effects', 'Video Effects', 'Transitions', 'Color Presets'].forEach((s, i) => {
+  el(fxList, 'a', { left: '18px', top: px(10 + i * 34) }, svgI('folder', 18)); el(fxList, 'lbl', { left: '46px', top: px(10 + i * 34), fontSize: '14px', fontWeight: 500, color: '#9a9a9a' }, s); });
+const aiBody = el(P.AI, 'a', { left: 0, top: 0, width: '464px', height: '1020px', opacity: 0 });
+const aiTitle = el(aiBody, 'a', { left: '20px', top: '58px', height: '40px' }, `<div style="position:absolute;left:0;top:2px;width:36px;height:36px">${sparkSVG(CLAY, 9)}</div><div style="position:absolute;left:46px;top:0;font-size:30px;font-weight:700;letter-spacing:-0.02em;white-space:nowrap">Claude</div>`);
+const bubble = el(aiBody, 'a', { right: '16px', top: '112px', padding: '11px 18px', borderRadius: '12px', background: '#2A2A2A', fontSize: '19px', fontWeight: 600, color: '#f0f0f0', transformOrigin: '100% 50%', opacity: 0 }, 'Edit my intro');
+const ROWS = [{ l: 'Cut silences', i: 'scissors', r: 1.95, d: 4.5 }, { l: 'Add b-roll', i: 'film', r: 4.55, d: 6.75 }, { l: 'Captions', i: 'cc', r: 6.8, d: 8.25 },
+  { l: 'Colour grade', i: 'half', r: 8.3, d: 10.9 }, { l: 'Lower third', i: 'lt', r: 10.95, d: 11.75 }, { l: 'Export', i: 'up', r: 12.2, d: 13.65 }];
+const rowEls = ROWS.map((o, i) => {
+  const y = 184 + i * 66, r = el(aiBody, 'row', { top: px(y) });
+  el(r, 'a', { left: '12px', top: '12px', width: '30px', height: '30px', borderRadius: '7px', background: 'var(--tile)', padding: '5px' }, svgI(o.i, 20));
+  const lab = el(r, 'lbl', { left: '56px', top: '14px', fontSize: '20px', fontWeight: 600, color: 'var(--dim)' }, o.l);
+  const pend = el(r, 'a', { right: '14px', top: '17px', width: '20px', height: '20px', borderRadius: '50%', border: '2px solid #3A3A3A' });
+  const spin = el(r, 'a', { right: '14px', top: '17px', width: '20px', height: '20px', opacity: 0 }, `<svg viewBox="0 0 20 20" width="20" height="20"><circle cx="10" cy="10" r="8" fill="none" stroke="#3A3A3A" stroke-width="2.4"/><path d="M10 2a8 8 0 018 8" fill="none" stroke="${CLAY}" stroke-width="2.4" stroke-linecap="round"/></svg>`);
+  const tick = el(r, 'a', { right: '12px', top: '15px', width: '24px', height: '24px', opacity: 0 }, `<svg viewBox="0 0 24 24" width="24" height="24"><circle cx="12" cy="12" r="11" fill="${CLAY}"/><path class="ck" d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" pathLength="1" stroke-dasharray="1" stroke-dashoffset="1"/></svg>`);
+  const pct = i === 5 ? el(r, 'lbl tc', { right: '48px', top: '17px', fontSize: '15px', fontWeight: 700, color: '#e8e8e8', opacity: 0 }) : null;
+  return { r, lab, pend, spin, tick, ck: tick.querySelector('.ck'), pct, y };
+});
+const input = el(aiBody, 'a', { left: '16px', top: '956px', width: '432px', height: '48px', borderRadius: '12px', background: '#232323', border: '1px solid #2B2B2B' });
+const inputLine = el(input, 'lbl', { left: '16px', top: '12px', height: '24px', fontSize: '17px', fontWeight: 500, color: '#e6e6e6', display: 'flex', alignItems: 'center' });
+const inputTxt = document.createElement('span'); inputLine.appendChild(inputTxt);
+const caret = el(inputLine, '', { width: '2px', height: '22px', marginLeft: '1px', background: '#cfcfcf' });
+const send = el(input, 'a', { right: '9px', top: '9px', width: '30px', height: '30px', borderRadius: '50%', background: CLAY },
+  '<svg viewBox="0 0 20 20" width="30" height="30" style="padding:6px"><path d="M10 15V5M6 9l4-4 4 4" stroke="#fff" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+
+/* overlays in app space */
+const focus = el(app, ''); focus.id = 'focus';
+const ghost = el(app, ''); ghost.id = 'ghost';
+const ringsHost = el(app, 'a', { left: 0, top: 0 });
+const cursor = el(app, ''); cursor.id = 'cursor';
+cursor.innerHTML = `<svg viewBox="0 0 44 52" width="34" height="40" style="position:absolute;left:0;top:0"><path d="M4 3 L4 41 L14 32 L21 47 L28 44 L21 29 L35 29 Z" fill="${CLAY}" stroke="#141414" stroke-width="2.5" stroke-linejoin="round"/></svg>
+  <div style="position:absolute;left:30px;top:36px;padding:3px 10px 4px 7px;border-radius:10px;background:#1B1B1B;border:1px solid #3A3A3A;font-size:13px;font-weight:650;color:#eee;white-space:nowrap">
+  <span style="display:inline-block;width:12px;height:12px;vertical-align:-1px;margin-right:5px">${sparkSVG(CLAY, 10)}</span>Claude</div>`;
+
+/* ---------- frames ---------- */
+const FS = makeFrame(fSrc, {}), FP = makeFrame(fPrg, { wipe: true, spark: true, lt: true, caps: true }), FF = makeFrame($('fFin'), { spark: true, lt: true, caps: true });
+const CAP_P = { l1: [6.95, 7.12, 7.29], l1out: 7.55, l2: [7.66, 7.83, 8.0, 8.17], pillOff: 8.75 };
+const CAP_F = { l1: [15.5, 15.75, 16.0], l1out: 16.25, l2: [16.35, 16.55, 16.75, 16.95], pillOff: 99 };
+
+/* ---------- camera ---------- */
+const CK = [[0, 960, 560, 0.80, 16, -13], [1.5, 960, 548, 0.94, 0, 0, 'power2.out'], [1.95, 960, 548, 0.955, 0, 0, 'none'],
+  [2.45, 964, 805, 1.98, 0, 0, 'power3.inOut'], [3.95, 964, 805, 2.03, 0, 0, 'none'],
+  [4.45, 640, 735, 1.55, 0, 0, 'power3.inOut'], [6.72, 640, 735, 1.59, 0, 0, 'none'],
+  [7.42, 1180, 520, 1.32, 0, 0, 'power2.inOut'], [8.2, 1180, 520, 1.34, 0, 0, 'none'],
+  [8.88, 655, 360, 1.48, 0, 0, 'power2.inOut'], [9.62, 662, 360, 1.51, 0, 0, 'none'],
+  [10.32, 1004, 340, 2.08, 0, 0, 'power2.inOut'], [11.7, 1004, 340, 2.14, 0, 0, 'none'],
+  [12.2, 990, 560, 0.98, 3, -5, 'power3.inOut'], [13.85, 975, 560, 1.0, 3, -5, 'none'],
+  [14.65, 1004, 330.25, 1920 / 840, 0, 0, 'power4.in']];
+function cam(t) {
+  if (t <= CK[0][0]) return CK[0].slice(1, 6);
+  for (let i = 1; i < CK.length; i++) { const a = CK[i - 1], b = CK[i];
+    if (t <= b[0]) { const p = S.ease(b[6])((t - a[0]) / (b[0] - a[0])); return [1, 2, 3, 4, 5].map((j) => mix(a[j], b[j], p)); } }
+  return CK[CK.length - 1].slice(1, 6);
+}
+
+/* ---------- cursor path: [start, end, x, y] moves; presses ---------- */
+const T = thumbs, V2Y = R.TL.y + TR.V2.y + TR.V2.h / 2;
+const v2cx = (k) => R.TL.x + tx((V2C[k][0] + V2C[k][1]) / 2);
+const knobX = (v) => R.SRC.x + 24 + (0.5 + v / 100) * 504;   // value -50..50 → world x
+const picW = (fx, fy) => [R.PRG.x + 16 + fx * 840 / 1920, R.PRG.y + 42 + fy * 840 / 1920];
+const CUR = [[0, 0, 560, 700], [4.55, 4.8, T[2].cx, T[2].cy], [4.9, 5.2, v2cx(0), V2Y], [5.28, 5.42, T[3].cx, T[3].cy], [5.5, 5.8, v2cx(1), V2Y],
+  [5.88, 6.02, T[4].cx, T[4].cy], [6.1, 6.4, v2cx(2), V2Y], [6.75, 7.15, 1290, 805],
+  [8.3, 8.58, knobX(0), R.SRC.y + 34 + SL[0].y], [8.67, 9.15, knobX(32), R.SRC.y + 34 + SL[0].y], [9.25, 9.6, 470, 400],
+  [9.72, 10.02, ...picW(0.2 * 1920, 472)], [10.12, 10.5, ...picW(0.55 * 1920, 472)], [10.62, 11.15, ...picW(330, 668)],
+  [11.45, 12.05, R.AI.x + 300, R.AI.y + rowEls[5].y + 30], [12.3, 13.6, R.AI.x + 340, R.AI.y + rowEls[5].y + 90]];
+const PRESS = [4.85, 5.45, 6.05, 8.62, 10.07, 11.22, 12.12];
+const DRAGS = [[4.85, 5.25, 2, 0], [5.45, 5.85, 3, 1], [6.05, 6.45, 4, 2]];   // press, release, bin item, b-roll index
+const rings = PRESS.map(() => el(ringsHost, 'ring'));
+function curPos(t) {
+  let x = CUR[0][2], y = CUR[0][3];
+  for (let i = 1; i < CUR.length; i++) { const [a, b, nx, ny] = CUR[i]; const p = S.ease('power3.inOut')(clamp((t - a) / (b - a), 0, 1)); x = mix(x, nx, p); y = mix(y, ny, p); }
+  return [x, y];
+}
+
+/* ---------- playhead (seconds on the timeline) ---------- */
+function playhead(t) {
+  if (t < 2.0) return 0.7 + t * 0.85;
+  let v = 2.4;
+  v = mix(v, 8.9, seg(t, 5.3, 0.22, 'power3.inOut')); v = mix(v, 12.0, seg(t, 5.9, 0.22, 'power3.inOut')); v = mix(v, 15.4, seg(t, 6.5, 0.22, 'power3.inOut'));
+  v = mix(v, 3.0, seg(t, 6.95, 0.2, 'power3.inOut'));
+  if (t > 7.15) v = 3.0 + Math.min(t - 7.15, 1.05) * 3.3 + Math.max(0, Math.min(t, 12.2) - 8.2) * 0.25;
+  if (t > 12.2) v = mix(v, 0, seg(t, 12.2, 0.15, 'power3.inOut'));
+  if (t > 12.35) v = Math.min(21, (t - 12.35) / 1.3 * 21);
+  return v;
+}
+const tcode = (s) => { const f = Math.floor(s * 30 + 1e-6), sec = Math.floor(f / 30), fr = f % 30; return `00:00:${String(sec).padStart(2, '0')}:${String(fr).padStart(2, '0')}`; };
+
+/* ---------- focus ring ---------- */
+const FOC = [[0.95, 'AI'], [1.95, 'TL'], [6.8, 'PRG'], [8.3, 'SRC'], [9.85, 'PRG'], [11.75, 'AI']];
+function focusRect(t) {
+  let r = R[FOC[0][1]];
+  for (let i = 1; i < FOC.length; i++) { const p = seg(t, FOC[i][0], 0.45, 'power3.inOut'); const b = R[FOC[i][1]];
+    r = { x: mix(r.x, b.x, p), y: mix(r.y, b.y, p), w: mix(r.w, b.w, p), h: mix(r.h, b.h, p) }; }
+  return r;
+}
+
+/* ---------- streaks + grain ---------- */
+const sc = $('streaks').getContext('2d'), gc = $('grain').getContext('2d');
+const SR = S.rng(77), STK = Array.from({ length: 56 }, (_, i) => ({ a: SR() * Math.PI * 2, sp: 0.6 + SR() * 0.8, d: SR() * 0.25, len: 0.3 + SR() * 0.5, clay: i % 3 === 0 }));
+const gimg = gc.createImageData(480, 270);
+function drawGrain(t) {
+  const r = S.rng(1000 + Math.round(t * 30)), d = gimg.data;
+  for (let i = 0; i < d.length; i += 4) { const v = r() * 255; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; }
+  gc.putImageData(gimg, 0, 0);
+}
+
+/* ---------- render ---------- */
+S.play(function render(t) {
+  /* camera with a lens tilt from its speed */
+  const c = cam(t), c0 = cam(Math.max(0, t - 1 / 30));
+  const vx = (c[0] - c0[0]) * c[2] * 30, vy = (c[1] - c0[1]) * c[2] * 30;
+  const lens = t < 13.9 ? 1 : 0;
+  const ry = c[4] + clamp(-vx * 0.0016, -3, 3) * lens, rx = c[3] + clamp(vy * 0.0016, -3, 3) * lens;
+  const s = c[2];
+  app.style.transform = `translate(960px,540px) rotateX(${rx}deg) rotateY(${ry}deg) scale(${s}) translate(${-c[0]}px,${-c[1]}px)`;
+  app.style.opacity = t < 14.66 ? 1 : 0;
+
+  /* panels land, then dive apart */
+  const nudge = seg(t, 13.72, 0.22, 'power2.out');
+  ORDER.forEach((k, i) => {
+    const r = R[k], p = seg(t, LAND[i], 0.7, 'expo.out'), pe = P[k];
+    let tr = `translateY(${(1 - p) * 26}px) scale(${0.975 + 0.025 * p})`, op = clamp((t - LAND[i]) / 0.25, 0, 1), blur = 0;
+    if (k !== 'PRG' && t > 13.7) {
+      let dx = r.x + r.w / 2 - 1004, dy = r.y + r.h / 2 - 330; const n = Math.hypot(dx, dy) || 1; dx /= n; dy /= n;
+      const ord = ['AI', 'TL', 'SRC', 'BIN', 'TOOLS'].indexOf(k), f = seg(t, 13.92 + ord * 0.05, 0.7, 'power3.in');
+      const m = nudge * 26 + f * 1100;
+      tr = `translate3d(${dx * m}px,${dy * m}px,${f * 1100}px) rotateY(${dx * 38 * f}deg) rotateX(${-dy * 38 * f}deg)`;
+      blur = 7 * f; op = 1 - seg(t, 13.92 + ord * 0.05 + 0.4, 0.3, 'none');
+    }
+    pe.style.transform = tr; pe.style.opacity = op; pe.style.filter = blur > 0.05 ? `blur(${blur.toFixed(2)}px)` : 'none';
+  });
+  const chromeA = 1 - seg(t, 14.0, 0.3, 'power2.in');
+  prgChrome.forEach((e) => { e.style.opacity = chromeA; });
+  P.PRG.style.background = `rgba(29,29,29,${chromeA})`;
+  win.style.opacity = 1 - seg(t, 13.95, 0.4, 'power2.in');
+
+  /* title tabs */
+  const exportOn = t >= 12.2;
+  TOPT.forEach((d, i) => { d.style.color = (exportOn ? i === 2 : i === 1) ? 'var(--text)' : 'var(--dim)'; });
+  const tlp = seg(t, 12.2, 0.3, 'power3.inOut'); topLine.style.left = px(mix(840 + 92 + 18, 840 + 184 + 10, tlp)); topLine.style.width = px(mix(34, 50, tlp));
+
+  /* source panel: footage → b-roll previews → effect controls */
+  const fxOn = seg(t, 8.3, 0.4, 'power3.inOut');
+  srcTabs[0].classList.toggle('on', t < 8.3); srcTabs[1].classList.toggle('on', t >= 8.3);
+  srcLine.style.left = px(mix(16, 72, fxOn)); srcLine.style.width = px(mix(50, 100, fxOn));
+  srcPic.style.opacity = 1 - fxOn; srcTC.style.opacity = 1 - fxOn; srcTr.style.opacity = 1 - fxOn;
+  fx.style.opacity = fxOn; fx.style.transform = `translateY(${(1 - fxOn) * 20}px)`;
+  srcTC.textContent = tcode(4.8 + t * 0.9);
+  const srcB = t < 4.85 ? -1 : t < 5.45 ? 0 : t < 6.05 ? 1 : 2;
+  drawFrame(FS, { grade: 0, broll: srcB }, t);
+  // sliders: temperature by the cursor, saturation + contrast by the AI
+  const vT = mix(0, 32, seg(t, 8.67, 0.48, 'power3.inOut')), vS = mix(0, 18, seg(t, 9.25, 0.4, 'power3.inOut')), vC = mix(0, 11, seg(t, 9.42, 0.4, 'power3.inOut'));
+  [vT, vS, vC].forEach((v, i) => { const o = SL[i]; o.val.textContent = v.toFixed(1); const kx = 24 + (0.5 + v / 100) * 504;
+    o.knob.style.left = px(kx - 9); if (i > 0) o.fill.style.width = px(Math.max(0, kx - 276)); });
+  const grade = clamp(0.6 * vT / 32 + 0.25 * vS / 18 + 0.15 * vC / 11, 0, 1);
+
+  /* program: footage, b-roll, grade, wipe, lower third, captions */
+  const prgB = t >= 5.4 && t < 6.0 ? 0 : t >= 6.0 && t < 6.6 ? 1 : t >= 6.6 && t < 7.05 ? 2 : -1;
+  let wipe = null;
+  if (t > 9.85 && t < 11.0) {
+    let wx = 0.2; wx = mix(wx, 0.55, seg(t, 10.12, 0.38, 'power3.inOut')); wx = mix(wx, 1.0, seg(t, 10.65, 0.3, 'power3.in'));
+    const a = seg(t, 9.85, 0.2, 'power2.out') * (1 - seg(t, 10.85, 0.12, 'none'));
+    const press = 1 - 0.12 * (seg(t, 10.07, 0.08, 'power2.out') - seg(t, 10.5, 0.2, 'power2.out'));
+    wipe = { x: wx, a, press };
+  }
+  drawFrame(FP, { grade, broll: prgB, wipe, spark: seg(t, 7.0, 0.35, 'none'), lt: Math.max(0, t - 11.28), caps: CAP_P }, t);
+  prgTC.textContent = tcode(playhead(t));
+  const ex = seg(t, 12.2, 1.45, 'power1.inOut'), exA = t >= 12.15 && t < 14.0 ? seg(t, 12.15, 0.2, 'none') : 0;
+  expBarBg.style.opacity = exA * chromeA; expBar.style.transform = `scaleX(${ex})`;
+  expPct.style.opacity = exA * chromeA; expPct.textContent = Math.round(ex * 100) + '%';
+  prgTC.style.opacity = chromeA * (1 - exA);
+
+  /* bin: highlight the item being dragged */
+  thumbs.forEach((o, i) => { const d = DRAGS.find((q) => q[2] === i); o.ol.style.opacity = d && t > d[0] - 0.05 && t < d[1] + 0.25 ? 1 : 0; });
+  toolSel.style.top = px(t > 2.45 && t < 3.6 ? 12 + 3 * 44 : 12);
+
+  /* timeline */
+  const P_ = playhead(t);
+  tlTC.textContent = tcode(P_);
+  const rip = seg(t, 3.95, 0.5, 'power3.inOut');
+  tlDur.textContent = `00:00:${String(Math.round(mix(30, 21, rip))).padStart(2, '0')}:00`;
+  const cut = t > 3.5;
+  pieces.forEach((pc) => {
+    const [s0] = pc.rng;
+    if (pc.isSil) {
+      const mark = seg(t, 2.5 + pc.k * 0.2, 0.25, 'power2.out'), L = seg(t, 3.5 + pc.k * 0.1, 0.3, 'power2.in');
+      pc.hv.style.opacity = mark; pc.ha.style.opacity = mark;
+      [pc.v, pc.a].forEach((e) => { e.style.transform = `translateY(${-16 * L}px)`; e.style.opacity = 1 - L; e.style.borderRadius = cut ? '5px' : '0'; });
+    } else {
+      const x = mix(s0, PACK[pc.k], rip);
+      [pc.v, pc.a].forEach((e, j) => { const col = j ? 'var(--audE)' : 'var(--vidE)';
+        e.style.left = px(tx(x));
+        e.style.borderLeft = pc.k === 0 || cut ? `1.5px solid ${col}` : 'none'; e.style.borderRight = pc.k === 3 || cut ? `1.5px solid ${col}` : 'none';
+        e.style.borderRadius = cut ? '5px' : pc.k === 0 ? '5px 0 0 5px' : pc.k === 3 ? '0 5px 5px 0' : '0'; });
+    }
+  });
+  a2.style.width = px(mix(30, 21, rip) * PXS);
+  SIL.forEach(([s0, s1], k) => { const f = seg(t, 2.5 + k * 0.2, 0.08, 'none') * (1 - seg(t, 2.85 + k * 0.2, 0.3, 'power2.in'));
+    razors[k][0].style.left = px(tx(s0) - 1.5); razors[k][1].style.left = px(tx(s1) - 1.5);
+    razors[k].forEach((r) => { r.style.opacity = f; }); });
+  joints.forEach((j, k) => { j.style.left = px(tx(PACK[k + 1]) - 1); j.style.opacity = seg(t, 4.4, 0.1, 'none') * (1 - seg(t, 4.75, 0.35, 'none')); });
+  DRAGS.forEach(([tp, tr2, bi, k]) => { const p = seg(t, tr2, 0.34, 'back.out(2)'); v2[k].style.opacity = t >= tr2 ? 1 : 0;
+    v2[k].style.transform = `translateY(${(1 - p) * -10}px) scale(${0.85 + 0.15 * p})`; });
+  V3B.forEach((b, i) => { const t0 = 6.85 + i * 0.05, p = seg(t, t0, 0.34, 'back.out(2)'); b.style.opacity = t > t0 ? 1 : 0; b.style.transform = `scale(${0.8 + 0.2 * p})`; });
+  ph.style.left = px(tx(P_) - 1);
+
+  /* mascot: hops between silences, then rides the playhead */
+  {
+    const floor = TR.V2.y + TR.V2.h - 4;
+    const spots = [tx(7.5), tx(15.5), tx(24)];
+    let x = spots[0], y = floor, sx = 1, sy = 1;
+    const a = seg(t, 2.2, 0.3, 'back.out(2)');
+    const hop = (t0, x0, x1, y0, y1, H) => { if (t < t0 - 0.08 || t > t0 + 0.65) return null; const p = clamp((t - t0) / 0.4, 0, 1);
+      const e = S.ease('power1.inOut')(p); const yy = mix(y0, y1, e) - H * Math.sin(Math.PI * p);
+      let ssy = 1; if (t < t0) ssy = 0.78; else if (p < 1) ssy = 1.15; else { const w = (t - t0 - 0.4) / 0.25; ssy = 1 - 0.18 * Math.sin(w * Math.PI * 2) * (1 - w); }
+      return [mix(x0, x1, e), yy, 1 / Math.sqrt(ssy), ssy]; };
+    let h = null;
+    if (t >= 2.62) x = spots[1];
+    if (t >= 3.08) x = spots[2];
+    if (t < 3.0) h = hop(2.62, spots[0], spots[1], floor, floor, 60);
+    else if (t < 3.8) h = hop(3.08, spots[1], spots[2], floor, floor, 60);
+    if (t >= 3.73) x = tx(mix(24, 20.25, rip));   // ride the ripple
+    let ride = false;
+    if (t >= 4.42) { h = hop(4.5, tx(20.25), tx(P_), floor, 70, 90); if (t >= 4.9) ride = true; }
+    if (h) { [x, y, sx, sy] = h; }
+    if (ride) { x = tx(P_); const hopP = [5.3, 5.9, 6.5, 6.95].map((q) => Math.sin(Math.PI * clamp((t - q) / 0.22, 0, 1))).reduce((m, v) => Math.max(m, v), 0);
+      y = 70 - hopP * 26 - 2 * Math.sin(t * 6); sx = sy = 1; }
+    const k = ride ? 0.72 : 1;
+    mascot.style.opacity = t > 2.2 ? 1 : 0;
+    mascot.style.left = px(x - 18); mascot.style.top = px(y - 36);
+    mascot.style.transform = `scale(${a * sx * k}, ${a * sy * k}) rotate(${t * 60}deg)`;
+    const hgt = Math.max(0, floor - y); mShadow.style.opacity = !ride && t > 2.2 ? 0.8 * (1 - clamp(hgt / 90, 0, 0.8)) : 0;
+    mShadow.style.left = px(x - 15); mShadow.style.top = px(floor - 3); mShadow.style.transform = `scale(${1 - clamp(hgt / 90, 0, 0.7)})`;
+  }
+
+  /* AI panel */
+  const clT = seg(t, 0.95, 0.35, 'power3.inOut');
+  aiTabs[0].classList.toggle('on', t < 0.95); aiTabs[1].classList.toggle('on', t >= 0.95);
+  aiLine.style.left = px(mix(16, 86, clT)); aiLine.style.width = px(mix(52, 76, clT));
+  fxList.style.opacity = 1 - clT; aiBody.style.opacity = clT;
+  aiTitle.style.transform = `translateY(${(1 - seg(t, 0.95, 0.6, 'expo.out')) * 16}px)`;
+  const typed = 'Edit my intro', nT = t < 1.32 ? Math.floor(clamp((t - 1.0) / 0.3, 0, 1) * typed.length) : 0;
+  inputTxt.textContent = typed.slice(0, nT);
+  caret.style.opacity = t < 14 && (Math.floor(t * 2.5) % 2 === 0 || (t > 1.0 && t < 1.32)) ? 1 : 0;
+  const sendP = seg(t, 1.3, 0.08, 'power2.out') - seg(t, 1.38, 0.3, 'expo.out'); send.style.transform = `scale(${1 - 0.15 * sendP})`;
+  const bp = seg(t, 1.36, 0.35, 'back.out(2)'); bubble.style.opacity = t > 1.36 ? 1 : 0; bubble.style.transform = `scale(${0.7 + 0.3 * bp}) translateY(${(1 - bp) * 10}px)`;
+  rowEls.forEach((o, i) => {
+    const R0 = ROWS[i], t0 = 1.46 + i * 0.07, land = seg(t, t0, 0.7, 'expo.out');
+    o.r.style.opacity = t > t0 ? Math.min(1, (t - t0) / 0.15) : 0; o.r.style.transform = `translateY(${(1 - land) * 22}px)`;
+    const running = t >= R0.r && t < R0.d, done = t >= R0.d;
+    o.lab.style.color = running || done ? 'var(--body)' : 'var(--dim)';
+    o.r.style.borderColor = running ? CLAY : 'var(--rowline)'; o.r.style.background = running ? '#272727' : 'var(--row)';
+    o.pend.style.opacity = running || done ? 0 : 1;
+    o.spin.style.opacity = running ? 1 : 0; o.spin.style.transform = `rotate(${t * 600}deg)`;
+    const tp = seg(t, R0.d, 0.4, 'back.out(2.6)'); o.tick.style.opacity = done ? 1 : 0; o.tick.style.transform = `scale(${0.4 + 0.6 * tp})`;
+    o.ck.style.strokeDashoffset = 1 - seg(t, R0.d + 0.05, 0.3, 'power2.out');
+    if (o.pct) { o.pct.style.opacity = t >= 12.2 ? 1 : 0; o.pct.textContent = Math.round(ex * 100) + '%'; }
+  });
+
+  /* focus ring */
+  const fr = focusRect(t);
+  Object.assign(focus.style, { left: px(fr.x - 3), top: px(fr.y - 3), width: px(fr.w + 6), height: px(fr.h + 6) });
+  focus.style.opacity = seg(t, 0.95, 0.3, 'none') * (1 - seg(t, 13.7, 0.2, 'none'));
+
+  /* cursor, rings, drag ghost */
+  const [cx, cy] = curPos(t), cs = Math.pow(s, -0.65);
+  let dip = 1; PRESS.forEach((q) => { dip -= 0.16 * (seg(t, q - 0.05, 0.06, 'power2.out') - seg(t, q + 0.05, 0.15, 'power2.out')); });
+  const dragging = DRAGS.some((d) => t >= d[0] && t < d[1]) || (t >= 8.62 && t < 9.2) || (t >= 10.07 && t < 10.55);
+  if (dragging) dip = Math.min(dip, 0.9);
+  cursor.style.opacity = seg(t, 4.45, 0.15, 'none') * (1 - seg(t, 13.65, 0.2, 'none'));
+  cursor.style.transform = `translate(${cx - 4 * cs}px, ${cy - 3 * cs}px) scale(${cs * dip})`;
+  rings.forEach((r, i) => { const q = PRESS[i], p = clamp((t - q) / 0.45, 0, 1); const on = t >= q && p < 1;
+    const [rx2, ry2] = curPos(q); r.style.left = px(rx2); r.style.top = px(ry2);
+    r.style.opacity = on ? 1 - p : 0; r.style.transform = `scale(${cs * (1 + 0.7 * S.ease('power2.out')(p))})`; });
+  const dg = DRAGS.find((d) => t >= d[0] + 0.03 && t < d[1]);
+  ghost.style.opacity = dg ? 0.94 : 0;
+  if (dg) { if (ghost.dataset.k !== String(dg[3])) { ghost.innerHTML = BROLL[dg[3]]; ghost.dataset.k = String(dg[3]); }
+    const gp = seg(t, dg[0], 0.2, 'back.out(2)'); ghost.style.transform = `translate(${cx - 60}px, ${cy - 30}px) scale(${0.6 + 0.4 * gp}) rotate(${-3 * gp}deg)`; }
+
+  /* the dive: light streaks */
+  sc.clearRect(0, 0, 1920, 1080);
+  if (t > 14.05 && t < 14.95) {
+    STK.forEach((k) => { const u = clamp((t - 14.05 - k.d * 0.4) / 0.6, 0, 1); if (u <= 0 || u >= 1) return;
+      const r0 = 120 + u * u * 1500 * k.sp, r1 = r0 + 160 * k.len + u * 500 * k.len;
+      sc.strokeStyle = k.clay ? `rgba(217,119,87,${0.9 * Math.sin(Math.PI * u)})` : `rgba(255,255,255,${0.75 * Math.sin(Math.PI * u)})`;
+      sc.lineWidth = 2 + u * 2; sc.beginPath(); sc.moveTo(960 + Math.cos(k.a) * r0, 540 + Math.sin(k.a) * r0 * 0.75);
+      sc.lineTo(960 + Math.cos(k.a) * r1, 540 + Math.sin(k.a) * r1 * 0.75); sc.stroke(); });
+  }
+
+  /* final full frame */
+  $('final').style.opacity = t >= 14.65 ? 1 : 0;
+  const push = 1 + 0.05 * seg(t, 14.65, 3.35, 'power1.inOut');
+  $('fFin').style.transform = `translate(960px, 430px) scale(${push}) translate(-960px, -430px)`;
+  drawFrame(FF, { grade: 1, broll: -1, spark: 1, lt: Math.max(0, t - 15.0), caps: CAP_F }, t);
+  $('flash').style.opacity = 0.6 * (seg(t, 14.6, 0.06, 'none') - seg(t, 14.7, 0.45, 'power2.out'));
+
+  drawGrain(t);
+});
+/*
+  媒体生成（在 media/ 里运行，webcam.mp4 来自 assets/me/）：
+  ffmpeg -ss 5 -i webcam.mp4 -frames:v 1 -vf "crop=864:486:0:178,scale=960:540,gblur=sigma=22,eq=brightness=-0.10:saturation=1.1" roomblur.jpg
+  缩略图（T=3/11/21 → thumb1/2/3.jpg，400x225）与胶片条（T=1,3,…,19 每帧 112x63，再 tile=10x1 → filmstrip.jpg）：
+  ffmpeg -ss T -i webcam.mp4 -frames:v 1 -filter_complex "[0:v]split[a][b];[a]crop=864:486:0:178,scale=W:H,gblur=sigma=12,eq=brightness=-0.10[bg];[b]scale=-2:H[fg];[bg][fg]overlay=(W-w)/2:0" out.jpg
+*/
+</script>
+</body>
+</html>

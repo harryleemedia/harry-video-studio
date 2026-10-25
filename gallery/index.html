@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Harry 的视频工作室 1.0 · 选一个风格</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&family=Noto+Serif+SC:wght@500;700&family=Noto+Sans+SC:wght@400;500;600&display=swap" />
+<style>
+  :root {
+    --bg: #0B0B0C; --surface: #141416; --line: rgba(255,255,255,0.08); --line2: rgba(255,255,255,0.14);
+    --text: #EDEAE3; --mute: #8F8B83; --faint: #5E5B55; --accent: #D97757; --ivory: #F3EFE6;
+    --serif: 'Instrument Serif', 'Noto Serif SC', Georgia, serif; --sans: 'Inter', 'Noto Sans SC', system-ui, sans-serif; --mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { background: var(--bg); }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); -webkit-font-smoothing: antialiased; min-height: 100vh; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+  /* top bar */
+  .bar { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; gap: 24px;
+    padding: 18px 64px; background: rgba(11,11,12,0.82); backdrop-filter: saturate(140%) blur(14px); -webkit-backdrop-filter: saturate(140%) blur(14px);
+    border-bottom: 1px solid var(--line); }
+  .mark { font-family: var(--serif); font-size: 26px; letter-spacing: -0.01em; white-space: nowrap; }
+  .mark i { color: var(--accent); }
+  .mark { display: flex; align-items: center; gap: 12px; }
+  .mark img { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 1px var(--line2); }
+  .mark small { font-family: var(--sans); font-size: 12px; color: var(--mute); letter-spacing: 0; }
+  .controls { display: flex; gap: 12px; flex-wrap: wrap; justify-content: flex-end; }
+  .seg { display: inline-flex; padding: 4px; border-radius: 999px; background: rgba(255,255,255,0.05); border: 1px solid var(--line); }
+  .seg button { padding: 8px 16px; border-radius: 999px; font-size: 13px; font-weight: 500; color: var(--mute); transition: color .2s, background .2s; white-space: nowrap; }
+  .seg button:hover { color: var(--text); }
+  .seg button.on { background: var(--ivory); color: #111; }
+  .seg button:disabled { opacity: 0.35; cursor: default; }
+
+  /* hero */
+  .wrap { max-width: 1680px; margin: 0 auto; padding: 0 64px 120px; }
+  .hero { padding: 104px 0 72px; display: grid; grid-template-columns: 1.3fr 1fr; gap: 64px; align-items: end; border-bottom: 1px solid var(--line); margin-bottom: 64px; }
+  .hero h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(64px, 8vw, 128px); line-height: 0.92; letter-spacing: -0.025em; }
+  .hero h1 i { color: var(--accent); }
+  .hero p { font-size: 18px; line-height: 1.6; color: var(--mute); max-width: 560px; }
+  .hero p b { color: var(--text); font-weight: 500; }
+  .steps { display: flex; gap: 32px; margin-top: 28px; font-size: 14px; color: var(--mute); flex-wrap: wrap; }
+  .steps span { display: flex; align-items: center; gap: 10px; }
+  .steps em { font-style: normal; font-family: var(--mono); font-size: 12px; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line2);
+    display: inline-flex; align-items: center; justify-content: center; color: var(--text); }
+
+  /* section heads */
+  .group { margin-bottom: 96px; }
+  .ghead { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; margin-bottom: 32px; }
+  .ghead h2 { font-family: var(--serif); font-weight: 400; font-size: 44px; letter-spacing: -0.015em; }
+  .ghead p { color: var(--mute); font-size: 15px; max-width: 520px; text-align: right; line-height: 1.5; }
+
+  /* tiles */
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 64px 40px; }
+  .tile { display: flex; flex-direction: column; gap: 20px; }
+  .screen { position: relative; aspect-ratio: 16 / 9; border-radius: 18px; overflow: hidden; background: var(--surface);
+    box-shadow: 0 0 0 1px var(--line), 0 30px 60px -30px rgba(0,0,0,0.8); cursor: zoom-in; transition: transform .5s cubic-bezier(.2,.8,.2,1); }
+  .tile:hover .screen { transform: translateY(-4px); }
+  .screen video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity .18s linear; }
+  .screen .seg { position: absolute; left: 16px; top: 16px; z-index: 2; background: rgba(12,12,13,0.55); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-color: rgba(255,255,255,0.12); }
+  .screen .seg button { padding: 7px 14px; font-size: 12.5px; color: rgba(255,255,255,0.75); }
+  .screen .seg button.on { background: rgba(243,239,230,0.95); color: #111; }
+  .chip { position: absolute; left: 16px; top: 16px; z-index: 2; padding: 7px 12px; border-radius: 999px; font-size: 12px; color: rgba(255,255,255,0.8);
+    background: rgba(12,12,13,0.55); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.12); }
+  .meta { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+  .meta h3 { font-family: var(--serif); font-weight: 400; font-size: 32px; line-height: 1.05; letter-spacing: -0.01em; }
+  .meta .best { margin-top: 8px; color: var(--mute); font-size: 14.5px; line-height: 1.45; }
+  .meta code { display: inline-block; margin-top: 12px; font-family: var(--mono); font-size: 12px; color: var(--faint); letter-spacing: 0.02em; }
+  .use { flex: none; display: inline-flex; align-items: center; gap: 10px; padding: 13px 20px; border-radius: 999px; background: var(--ivory); color: #111;
+    font-size: 14px; font-weight: 600; transition: transform .2s, background .2s; white-space: nowrap; }
+  .use:hover { transform: translateY(-1px); background: #fff; }
+  .use.done { background: var(--accent); color: #fff; }
+  .use svg { width: 15px; height: 15px; }
+
+  /* own reference */
+  .own { margin-top: 24px; padding: 48px; border-radius: 20px; border: 1px dashed var(--line2); display: flex; justify-content: space-between; align-items: center; gap: 32px; }
+  .own h2 { font-family: var(--serif); font-weight: 400; font-size: 40px; }
+  .own p { color: var(--mute); font-size: 15.5px; line-height: 1.6; max-width: 640px; margin-top: 8px; }
+  .own .use { background: transparent; color: var(--text); box-shadow: inset 0 0 0 1px var(--line2); }
+  footer { color: var(--faint); font-size: 13px; padding-top: 64px; }
+
+  /* lightbox + toast */
+  #big { position: fixed; inset: 0; z-index: 30; background: rgba(5,5,6,0.94); display: none; align-items: center; justify-content: center; padding: 48px; }
+  #big video { width: min(92vw, 160vh); border-radius: 14px; box-shadow: 0 0 0 1px var(--line); }
+  #toast { position: fixed; left: 50%; bottom: 40px; transform: translate(-50%, 24px); opacity: 0; z-index: 40; padding: 14px 22px; border-radius: 999px;
+    background: var(--ivory); color: #111; font-size: 14.5px; font-weight: 500; transition: opacity .25s, transform .35s cubic-bezier(.2,.8,.2,1); pointer-events: none; }
+  #toast.on { opacity: 1; transform: translate(-50%, 0); }
+  #toast b { font-family: var(--mono); font-weight: 500; font-size: 13.5px; }
+
+  @media (max-width: 1100px) {
+    .grid { grid-template-columns: 1fr; }
+    .hero { grid-template-columns: 1fr; gap: 28px; padding-top: 64px; }
+    .bar, .wrap { padding-left: 24px; padding-right: 24px; }
+    .ghead { flex-direction: column; } .ghead p { text-align: left; }
+    .own { flex-direction: column; align-items: flex-start; padding: 32px; }
+  }
+  @media (max-width: 640px) {
+    .controls .seg:first-child { display: none; } .meta { flex-direction: column; }
+    .bar { flex-wrap: wrap; gap: 10px; padding: 12px 16px; } .controls { width: 100%; justify-content: flex-start; }
+    .wrap { padding-left: 16px; padding-right: 16px; } .hero h1 { font-size: 64px; } .ghead h2 { font-size: 36px; }
+  }
+</style>
+</head>
+<body>
+<div class="bar">
+  <div class="mark"><img src="me.jpg" alt="Harry" /><span>Harry 的视频工作室 <i>1.0</i></span><small>Claude Video 中文版</small></div>
+  <div class="controls">
+    <div class="seg" id="filter"><button data-f="all" class="on">全部风格</button><button data-f="studio">工作室作品</button><button data-f="code">代码风格</button></div>
+    <div class="seg" id="every"><button data-v="graphic" class="on">全部看纯图形</button><button data-v="media">全部看带素材</button></div>
+  </div>
+</div>
+
+<div class="wrap">
+  <section class="hero">
+    <h1>选一个<i>风格。</i></h1>
+    <div>
+      <p>每一格都是 Claude 用代码做出来的真实视频。把工作室作品<b>切到「带素材」</b>，就能看到同一个设计放进真实照片和画面后的样子，里面的人物就是你。
+        看中哪个就点<b>「用这个风格」</b>，再把它贴回 Claude Code。</p>
+      <div class="steps"><span><em>1</em>选一个风格</span><span><em>2</em>回答 5 个问题</span><span><em>3</em>确认 3 张静帧，拿到成片</span></div>
+    </div>
+  </section>
+
+  <section class="group" data-kind="studio">
+    <div class="ghead"><h2>工作室作品</h2><p>13 个完整设计。每一个都是可以复用的风格，也都有放进真实素材的版本。</p></div>
+    <div class="grid" id="studio"></div>
+  </section>
+
+  <section class="group" data-kind="code">
+    <div class="ghead"><h2>代码风格</h2><p>8 个干净的基础风格。纯图形，很快就能换成你的品牌色。</p></div>
+    <div class="grid" id="code"></div>
+  </section>
+
+  <section class="own">
+    <div>
+      <h2>有自己的参考？</h2>
+      <p>直接把 1 到 3 个链接或图片贴进 Claude Code。Claude 会研究它们是怎么做出来的，为你写一套新风格。</p>
+    </div>
+    <button class="use" data-copy="我自己的参考">用我自己的参考</button>
+  </section>
+  <footer>用 HyperFrames 和 GSAP 制作。点任意视频可以放大看。这里的每个风格都可以免费使用。</footer>
+</div>
+
+<div id="big"><video controls loop playsinline></video></div>
+<div id="toast"></div>
+
+<script src="looks.js"></script>
+<script>
+const COPY_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="5" width="9" height="9" rx="2"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg>';
+const CHECK_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8.5l3.2 3L13 4.5"/></svg>';
+const big = document.getElementById('big'), bv = big.querySelector('video'), toast = document.getElementById('toast');
+const tiles = [];
+let toastTimer;
+
+function copyText(text) {
+  const fallback = () => { const t = document.createElement('textarea'); t.value = text; document.body.appendChild(t); t.select();
+    try { document.execCommand('copy'); } catch (e) {} t.remove(); };
+  if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text).catch(fallback);
+  fallback(); return Promise.resolve();
+}
+function say(html) { toast.innerHTML = html; toast.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('on'), 2600); }
+function wireUse(btn, id) {
+  btn.innerHTML = COPY_ICON + (btn.textContent.trim() || '用这个风格');
+  const label = btn.textContent;
+  btn.onclick = () => copyText(id).then(() => {
+    btn.classList.add('done'); btn.innerHTML = CHECK_ICON + '已复制';
+    say(`已复制 <b>${id}</b>，贴到 Claude Code 里就行。`);
+    setTimeout(() => { btn.classList.remove('done'); btn.innerHTML = COPY_ICON + label; }, 1800);
+  });
+}
+
+LOOKS.forEach((L, n) => {
+  const t = document.createElement('article'); t.className = 'tile'; t.dataset.kind = L.kind;
+  t.innerHTML = `<div class="screen"></div>
+    <div class="meta"><div><h3>${L.name}</h3><div class="best">${L.best}</div><code>${L.id} · ${L.en}</code></div>
+    <button class="use">用这个风格</button></div>`;
+  const screen = t.querySelector('.screen');
+  wireUse(t.querySelector('.use'), L.id);
+  const files = { graphic: `videos/${L.id}.mp4`, media: `videos/${L.id}-media.mp4` };
+  let sw = null;
+  if (L.media) {
+    sw = document.createElement('div'); sw.className = 'seg';
+    sw.innerHTML = '<button data-v="graphic" class="on">纯图形</button><button data-v="media">带素材</button>';
+    screen.appendChild(sw);
+  } else {
+    const c = document.createElement('div'); c.className = 'chip'; c.textContent = '只有纯图形'; screen.appendChild(c);
+  }
+
+  // 两个叠在一起的视频同步播放。切换只是换成显示另一个，所以循环不会重新开始。
+  const vids = {}; let cur = null, visible = false;
+  function make(kind) {
+    const v = document.createElement('video');
+    Object.assign(v, { src: files[kind], muted: true, loop: true, playsInline: true, preload: 'auto' });
+    v.setAttribute('muted', ''); v.style.opacity = 0;
+    v.onclick = () => { bv.src = v.currentSrc || files[kind]; big.style.display = 'flex'; bv.currentTime = v.currentTime; bv.muted = true; bv.play(); };
+    v.onerror = () => { if (kind === 'media' && sw) { sw.querySelector('[data-v=media]').disabled = true; } };
+    screen.insertBefore(v, screen.firstChild); vids[kind] = v;
+    if (visible) v.play().catch(() => {});
+    return v;
+  }
+  function show(kind) {
+    if (kind === 'media' && !L.media) return;
+    const next = vids[kind] || make(kind);
+    if (cur && cur !== next && next.readyState >= 1) next.currentTime = cur.currentTime % (next.duration || 1e9);
+    Object.values(vids).forEach(v => { v.style.opacity = v === next ? 1 : 0; v.style.pointerEvents = v === next ? 'auto' : 'none'; });
+    cur = next;
+    if (sw) sw.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === kind));
+  }
+  if (sw) sw.querySelectorAll('button').forEach(b => b.onclick = e => { e.stopPropagation(); show(b.dataset.v); });
+  show('graphic');
+  if (L.media) make('media');
+  // 让隐藏的那个一直和看得到的那个对齐
+  (function lock() {
+    if (cur && visible) Object.values(vids).forEach(v => {
+      if (v === cur || v.readyState < 2) return;
+      const target = cur.currentTime % (v.duration || 1e9);
+      if (Math.abs(v.currentTime - target) > 0.12) v.currentTime = target;
+      if (v.paused) v.play().catch(() => {});
+    });
+    requestAnimationFrame(lock);
+  })();
+  new IntersectionObserver(es => es.forEach(e => {
+    visible = e.isIntersecting;
+    Object.values(vids).forEach(v => visible ? v.play().catch(() => {}) : v.pause());
+  }), { rootMargin: '300px' }).observe(t);
+  tiles.push({ L, show, t });
+  document.getElementById(L.kind).appendChild(t);
+});
+
+wireUse(document.querySelector('.own .use'), '我自己的参考');
+big.onclick = e => { if (e.target === big) { bv.pause(); big.style.display = 'none'; } };
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { bv.pause(); big.style.display = 'none'; } });
+document.querySelectorAll('#every button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#every button').forEach(x => x.classList.toggle('on', x === b));
+  tiles.forEach(x => x.show(b.dataset.v === 'media' && x.L.media ? 'media' : 'graphic'));
+});
+document.querySelectorAll('#filter button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#filter button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('.group').forEach(g => g.style.display = (b.dataset.f === 'all' || b.dataset.f === g.dataset.kind) ? '' : 'none');
+});
+</script>
+</body>
+</html>

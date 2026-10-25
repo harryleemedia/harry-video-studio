@@ -1,0 +1,726 @@
+<!doctype html>
+<!--
+  motion-app-ui · With media（Harry 版，16.0 秒，1920x1080，30 fps）
+  媒体文件（放进项目的 media/ 文件夹，原件在 $ZH/assets/me/，不要改原件）：
+    - media/walk/i094.jpg … i198.jpg ← 由 assets/me/ai-walk.mp4 补帧到 40 fps 后导出的第 94–198 帧
+        （AI 生成的 Harry 西装走向镜头；按 0.75 倍慢放，由合成时钟逐帧取图，不循环）
+    - media/th_walk.jpg / th_walk2.jpg / th_comp.jpg ← 由 ai-walk.mp4 截第 30 / 12 / 100 帧（素材箱缩略图）
+    - media/th_cam1.jpg / th_cam2.jpg ← 由 assets/me/webcam.mp4 截 5 s / 21 s 两帧，裁 16:9（素材箱缩略图）
+    - studio.js ← templates/motion/studio.js
+  生成命令：
+    ffmpeg -i ai-walk.mp4 -vf "minterpolate=fps=40:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1" -q:v 3 -start_number 0 i%03d.jpg   （保留 i094–i198）
+    ffmpeg -i ai-walk.mp4 -vf "select=eq(n\,30),scale=480:-2" -frames:v 1 th_walk.jpg      （12、100 帧同理；th_comp 先裁左上 1113x626）
+    ffmpeg -ss 5 -i webcam.mp4 -frames:v 1 -vf "scale=1080:-2,crop=1080:608:0:150,scale=480:-2" th_cam1.jpg   （21 s，y=190 同理）
+  肩膀跟踪数据（TRACK）已内嵌在下方：ai-walk.mp4 第 57–120 帧，左肩（画面右侧）用 LK 光流跟踪，7 帧平滑。
+  画面内：标题 Claude Video 2.0 在左上，素材放大 115% 靠左上对齐，让 Harry 的脸始终在标题右侧；
+  跟踪点在肩膀，配速标注和下三分之一条（Harry Lee）都避开脸。
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=switzer@400,500,600,700,800&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@1&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+<script src="studio.js"></script>
+<script>
+// shoulder track, source px (1280x720), frames 57..120, LK optical flow + 7-frame smoothing
+window.TRACK0=57;window.TRACK=[[818.4, 352.1], [820.5, 351.7], [822.1, 350.4], [823.3, 348.5], [826.4, 345.8], [828.8, 342.3], [830.4, 339.0], [831.6, 336.6], [832.3, 335.8], [832.8, 337.6], [832.9, 341.9], [832.7, 348.0], [831.8, 354.5], [830.6, 359.7], [829.3, 363.6], [828.2, 365.8], [827.5, 365.5], [827.3, 362.9], [827.8, 358.7], [829.1, 354.6], [830.9, 352.3], [833.4, 352.0], [836.3, 353.9], [839.5, 358.8], [843.4, 366.6], [847.8, 376.6], [853.2, 387.6], [859.2, 397.9], [865.7, 406.5], [872.1, 412.8], [877.9, 416.0], [883.0, 415.8], [887.2, 412.7], [890.2, 407.4], [892.2, 401.6], [893.2, 396.3], [893.8, 394.4], [894.1, 395.7], [894.2, 400.3], [894.0, 407.6], [893.8, 416.4], [893.5, 425.1], [893.1, 432.7], [892.6, 437.3], [892.2, 439.2], [892.0, 438.0], [891.9, 434.5], [891.8, 430.2], [891.8, 426.6], [891.9, 424.7], [892.1, 424.5], [892.5, 426.8], [892.7, 432.6], [893.0, 441.5], [893.3, 451.3], [893.6, 461.1], [894.0, 470.1], [894.3, 477.7], [894.5, 483.2], [894.8, 485.0], [894.9, 481.8], [895.0, 481.3], [895.1, 480.3], [895.3, 478.7]];
+</script>
+<style>
+  /* Switzer comes from the Fontshare link above (free, loaded at render time). This weight-100 local() face is
+     never used; it only tells the linter the family is declared. */
+  @font-face { font-family: 'Switzer'; src: local('Switzer'); font-weight: 100; }
+  :root {
+    --desk: #0A0A0B; --win: #121212; --panel: #1D1D1D; --row: #1F1F1F; --prop: #1A1A1A; --sel: #2B2B2B;
+    --text: #EDEDED; --num: #9A9A9A; --dim: #7A7A7A; --line: #2A2A2A;
+    --c1: #4E7380; --c2: #5F7A55; --c3: #6D6A55; --c4: #7A6F9E; --c5: #86796A;
+    --curve: #F2F2F2; --clay: #D97757;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--desk); }
+  #root { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--desk);
+    font-family: 'Switzer', sans-serif; color: var(--text); font-variant-numeric: tabular-nums; }
+  .abs { position: absolute; }
+  #desk { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 45%, #151517 0%, #0B0B0C 60%, #070708 100%); }
+  #deskDim { position: absolute; inset: 0; background: #000; opacity: 0; }
+  #stage { position: absolute; inset: 0; perspective: 2400px; perspective-origin: 960px 540px; }
+  #cam { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; transform-style: preserve-3d; }
+  #app { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-style: preserve-3d; }
+  .pnl { position: absolute; background: var(--panel); border-radius: 8px; overflow: hidden; }
+  .t11 { font-size: 11px; } .t12 { font-size: 12px; } .t13 { font-size: 13px; } .t14 { font-size: 14px; }
+  .dim { color: var(--dim); } .num { color: var(--num); }
+  .b6 { font-weight: 600; } .b7 { font-weight: 700; } .b8 { font-weight: 800; }
+  .nowrap { white-space: nowrap; }
+  #win { left: 60px; top: 34px; width: 1800px; height: 1012px; background: var(--win); border-radius: 12px;
+    border: 1px solid #1E1E1E; box-shadow: 0 30px 90px rgba(0,0,0,.6); }
+  .tab { position: absolute; font-size: 12px; font-weight: 600; color: var(--dim); white-space: nowrap; }
+  .tab.on { color: var(--text); }
+  .uline { position: absolute; height: 2px; background: var(--text); border-radius: 1px; }
+  .field { position: absolute; background: #151515; border: 1px solid #262626; border-radius: 6px; }
+  .thumb { position: absolute; width: 160px; height: 90px; border-radius: 4px; overflow: hidden; background: #000; }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .tlabel { position: absolute; font-size: 10.5px; color: #BDBDBD; font-weight: 600; white-space: nowrap; }
+  #comp { position: absolute; left: 535px; top: 146px; width: 1920px; height: 1080px; transform-origin: 0 0;
+    overflow: hidden; background: #000; }
+  #foot { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+  #title { position: absolute; left: 96px; top: 130px; font-weight: 800; font-size: 148px; line-height: .95;
+    letter-spacing: -0.03em; color: #fff; white-space: nowrap; text-shadow: 0 4px 30px rgba(0,0,0,.25); }
+  #title .ser { font-family: 'Instrument Serif', serif; font-style: italic; font-weight: 400; color: var(--clay);
+    letter-spacing: 0; -webkit-text-stroke: 2.5px var(--clay); padding-left: .06em; font-size: 1.04em; }
+  .row { position: absolute; left: 0; width: 1384px; height: 26px; }
+  .row .bg { position: absolute; left: 6px; width: 740px; top: 1px; height: 24px; border-radius: 4px; }
+  .row .cell { position: absolute; top: 6px; font-size: 11.5px; white-space: nowrap; }
+  .chip { position: absolute; top: 8px; width: 10px; height: 10px; border-radius: 2px; }
+  .bar { position: absolute; top: 6px; height: 14px; border-radius: 3px; }
+  .key { position: absolute; top: 8px; width: 10px; height: 10px; margin-left: -5px; }
+  .step { position: absolute; left: 1488px; width: 342px; height: 44px; border-radius: 8px; background: #1A1A1A; border: 1.5px solid transparent; }
+  .step .lbl { position: absolute; left: 44px; top: 13px; font-size: 13.5px; font-weight: 600; color: #CFCFCF; white-space: nowrap; }
+  .step .ico { position: absolute; left: 14px; top: 12px; width: 18px; height: 18px; }
+  .step .st { position: absolute; right: 12px; top: 12px; width: 18px; height: 18px; }
+  .tree { position: absolute; left: 92px; font-size: 12px; color: #BDBDBD; font-weight: 600; white-space: nowrap; height: 24px; }
+  .pill { position: absolute; background: #161616; border: 1.5px solid var(--clay); border-radius: 999px; color: #fff;
+    font-weight: 700; white-space: nowrap; display: flex; align-items: center; }
+  #flash { position: absolute; inset: 0; background: var(--clay); opacity: 0; }
+  #pre { position: absolute; left: 0; top: 0; width: 2px; height: 2px; overflow: hidden; opacity: 0.01; }
+  #pre img { width: 1px; height: 1px; }
+</style>
+</head>
+<body>
+<div id="root" data-composition-id="main" data-start="0" data-duration="16" data-width="1920" data-height="1080">
+  <div id="desk"></div>
+  <div id="deskDim"></div>
+  <div id="stage"><div id="cam"><div id="app">
+    <div id="win" class="abs"></div>
+    <div id="titlebar" class="abs" style="left:60px;top:34px;width:1800px;height:36px;"></div>
+    <div id="toolbar" class="abs" style="left:60px;top:70px;width:1800px;height:36px;"></div>
+    <div id="pLeft" class="pnl" style="left:74px;top:112px;width:360px;height:540px;"></div>
+    <div id="pView" class="pnl" style="left:448px;top:112px;width:1010px;height:540px;"></div>
+    <div id="pRight" class="pnl" style="left:1472px;top:112px;width:374px;height:920px;"></div>
+    <div id="pTime" class="pnl" style="left:74px;top:666px;width:1384px;height:366px;"></div>
+    <div id="comp">
+      <canvas id="foot" width="1920" height="1080"></canvas>
+      <svg id="compSvg" class="abs" width="1920" height="1080" viewBox="0 0 1920 1080" style="left:0;top:0;overflow:visible"></svg>
+      <div id="title"></div>
+      <div id="lower" class="abs" style="left:90px;top:860px;height:118px;overflow:hidden;">
+        <div id="lowerBox" class="abs" style="left:0;top:0;height:118px;width:440px;background:rgba(20,20,20,.88);border-radius:6px;"></div>
+        <div class="abs" style="left:0;top:0;width:10px;height:118px;background:var(--clay);border-radius:6px 0 0 6px;"></div>
+        <div id="lowerTxt" class="abs b8 nowrap" style="left:44px;top:15px;font-size:74px;letter-spacing:-0.02em;color:#fff;">Harry Lee</div>
+      </div>
+      <div id="callBox" class="abs" style="width:300px;height:86px;background:rgba(18,18,18,.9);border:1.5px solid #333;border-radius:11px;transform-origin:0 50%;">
+        <svg class="abs" style="left:20px;top:24px" width="36" height="38" viewBox="0 0 32 34" fill="none" stroke="#D97757" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="17" cy="4.5" r="3.2" fill="#D97757" stroke="none"/><path d="M15 10 L12 20 L17 25 L16 33"/><path d="M12 20 L7 33"/><path d="M14.5 12 L8 16"/><path d="M15.5 12 L22 17"/></svg>
+        <div class="abs b8 nowrap" style="left:66px;top:10px;font-size:52px;color:#fff;letter-spacing:-0.02em">4:52</div>
+        <div class="abs b6 nowrap" style="left:188px;top:33px;font-size:25px;color:#BDBDBD">/km</div>
+      </div>
+      <div id="trkTag" class="abs b7 nowrap" style="font-size:24px;padding:6px 14px;background:rgba(14,14,14,.92);border-radius:8px;color:#fff;transform:translateX(-50%)">Track Point 1</div>
+    </div>
+    <svg id="appSvg" class="abs" width="1920" height="1080" viewBox="0 0 1920 1080" style="left:0;top:0;overflow:visible"></svg>
+    <div id="focus" class="abs" style="border:1.5px solid var(--clay);border-radius:9px;"></div>
+    <div id="cursor" class="abs" style="left:0;top:0;transform-origin:0 0;"></div>
+  </div></div></div>
+  <div id="flash"></div>
+  <div id="pre"></div>
+</div>
+<script>
+(function () {
+const S = STUDIO;
+const $ = (id) => document.getElementById(id);
+const NS = 'http://www.w3.org/2000/svg';
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, p) => a + (b - a) * p;
+const seg = (t, a, d, e) => S.seg(t, a, d, e || 'power3.out');
+const ease = (n, p) => S.ease(n)(clamp(p, 0, 1));
+// static, authored markup only (no external input): parse it into a fragment
+const RNG = document.createRange(); RNG.selectNode(document.body);
+const frag = (h) => RNG.createContextualFragment(h);
+function el(tag, attrs, parent, html) {
+  const e = document.createElement(tag);
+  for (const k in attrs) { if (k === 'style') e.style.cssText = attrs[k]; else if (k === 'cls') e.className = attrs[k]; else e.setAttribute(k, attrs[k]); }
+  if (html != null) e.appendChild(frag(html));
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function sv(tag, attrs, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+// ---------- constants ----------
+const CLAY = '#D97757';
+const COMP = { x: 535, y: 146, w: 836, h: 470.25 }; const CS = COMP.w / 1920;
+const FS = 1.15;                  // footage is placed at 115% inside the comp (anchored top-left)
+const KX0 = 830, KX1 = 1430, PXS = (KX1 - KX0) / 3.5;   // timeline: 3.5 s comp
+const ROW0 = 760, RH = 26;
+const F19 = 19 / 24;
+// graph editor mapping (app coords)
+const gx = (f) => 840 + f * 23.3333;
+const gy = (v) => 1000 - (v - 110) * 0.75;
+const V0 = 134.5, V1 = 430;
+// asterisk (the AI's mark)
+function starPath(R) {
+  const L = [1, .78, .93, .7, 1, .84, .74, .96, .8, .9, .72, .88]; let d = '';
+  for (let i = 0; i < 12; i++) { const a = (i * 30 + 8) * Math.PI / 180, r = R * L[i];
+    d += `M0 0 L${(Math.cos(a) * r).toFixed(2)} ${(Math.sin(a) * r).toFixed(2)} `; }
+  return d;
+}
+const starSvg = (R, w) => `<svg width="${2*R}" height="${2*R}" viewBox="${-R} ${-R} ${2*R} ${2*R}" style="display:block;overflow:visible"><path d="${starPath(R*0.92)}" stroke="${CLAY}" stroke-width="${w}" stroke-linecap="round"/></svg>`;
+// ---------- comp clock (the playhead inside the app) ----------
+function compC(t) {
+  if (t < 1.8) return 1.55 + t;
+  if (t < 2.12) return 3.35;
+  if (t < 3.3) return F19;
+  if (t < 3.75) return 0;
+  if (t < 6.15) return Math.min(F19, t - 3.75);
+  if (t < 6.95) return Math.min(F19, t - 6.15);
+  if (t < 7.45) return 0;
+  if (t < 12.15) return Math.min(2.2, t - 7.45);
+  return clamp(t - 12.5, 0, 3.5);
+}
+const mediaT = (C) => 2.35 + 0.75 * C;                       // clip played at 0.75x (40 fps motion-interpolated frames)
+const frameOf = (C) => clamp(mediaT(C) * 24, 57, 120);       // source frame (24 fps) for the track data
+const iFrame = (C) => clamp(Math.round(mediaT(C) * 40), 94, 198);
+function tpAt(C) {                                            // tracked shoulder, comp coords
+  const f = frameOf(C), i = clamp(Math.floor(f) - TRACK0, 0, TRACK.length - 1), j = Math.min(i + 1, TRACK.length - 1), a = f - Math.floor(f);
+  const x = lerp(TRACK[i][0], TRACK[j][0], a), y = lerp(TRACK[i][1], TRACK[j][1], a);
+  return { x: x / 1280 * 1920 * FS, y: y / 720 * 1080 * FS };
+}
+const c2a = (p) => ({ x: COMP.x + p.x * CS, y: COMP.y + p.y * CS });
+function fmtTC(C) { const tot = Math.floor(C * 24 + 1e-6); const s = Math.floor(tot / 24), f = tot % 24;
+  return `0:00:${String(s).padStart(2, '0')}:${String(f).padStart(2, '0')}`; }
+// ---------- bezier (one curve drives graph, title and path dots) ----------
+const H1a = { x: 19 / 3, y: V0 + (V1 - V0) / 3 }, H1b = { x: 15.2, y: V0 };
+const H2a = { x: 19 * 2 / 3, y: V0 + (V1 - V0) * 2 / 3 }, H2b = { x: 3.8, y: V1 };
+function handles(t) {
+  const k1 = seg(t, 5.0, 0.45, 'power2.inOut'), k2 = seg(t, 5.62, 0.38, 'power2.inOut');
+  return { h1: { x: lerp(H1a.x, H1b.x, k1), y: lerp(H1a.y, H1b.y, k1) }, h2: { x: lerp(H2a.x, H2b.x, k2), y: lerp(H2a.y, H2b.y, k2) }, k1, k2 };
+}
+function bez(p0, p1, p2, p3, s) { const u = 1 - s; return u*u*u*p0 + 3*u*u*s*p1 + 3*u*s*s*p2 + s*s*s*p3; }
+function valAt(fr, H) {   // fr in frames 0..19 -> value
+  if (fr <= 0) return V0; if (fr >= 19) return V1;
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 28; i++) { const m = (lo + hi) / 2; if (bez(0, H.h1.x, H.h2.x, 19, m) < fr) lo = m; else hi = m; }
+  return bez(V0, H.h1.y, H.h2.y, V1, (lo + hi) / 2);
+}
+// ---------- build: title bar + toolbar ----------
+const tb = $('titlebar');
+[0, 1, 2].forEach((i) => el('div', { style: `position:absolute;left:${18 + i * 18}px;top:13px;width:10px;height:10px;border-radius:50%;background:#3A3A3A` }, tb));
+const wsTabs = ['Animate', 'Track', 'Render'].map((n, i) => el('div', { cls: 'tab', style: `left:${838 + i * 62}px;top:11px;` }, tb, n));
+const wsLine = el('div', { cls: 'uline', style: 'top:30px;' }, tb);
+const tbar = $('toolbar');
+const toolIcons = [
+  '<path d="M4 2 L4 15 L7.5 11.5 L10 17 L12 16 L9.5 10.5 L14 10.5 Z" fill="#CFCFCF" stroke="none"/>',
+  '<path d="M6 9 V4.5 a1.3 1.3 0 0 1 2.6 0 V9 M8.6 8 V3.5 a1.3 1.3 0 0 1 2.6 0 V8.5 M11.2 8.5 V5 a1.3 1.3 0 0 1 2.6 0 V11 c0 3.5-2 5.5-5 5.5 c-2.5 0-3.8-1.5-5-3.5 L2.5 10 a1.2 1.2 0 0 1 2-1.3 L6 11"/>',
+  '<circle cx="8" cy="8" r="5"/><path d="M12 12 L16 16"/>',
+  '<path d="M14 9 a5.5 5.5 0 1 1-2-4.3"/><path d="M12.5 1.5 V5 H9"/>',
+  '<rect x="2" y="5" width="10" height="8" rx="1.5"/><path d="M12 8 L16 5.5 V12.5 L12 10"/>',
+  '<path d="M9 1.5 V16.5 M1.5 9 H16.5"/><circle cx="9" cy="9" r="2.5"/>',
+  '<rect x="3" y="3" width="12" height="12" rx="1"/>',
+  '<path d="M9 2 L4 16 M9 2 L14 16 M6 11 H12"/>',
+  '<path d="M3 3.5 H15 M9 3.5 V16"/>',
+  '<path d="M3 15 L13 4 M11 3 L15 7"/>',
+  '<path d="M3 14 L14 3 M5 16 L16 5"/>',
+  '<path d="M4 15 L15 4 M12 4 H15 V7"/>',
+  '<path d="M3 9 L9 3 L15 9 L9 15 Z"/>',
+  '<path d="M4 12 c2-6 8-6 10 0 M6 14 c1.5-3 4.5-3 6 0"/>',
+];
+const toolEls = toolIcons.map((p, i) => el('div', { style: `position:absolute;left:${16 + i * 30}px;top:6px;width:24px;height:24px;border-radius:5px;` }, tbar,
+  `<svg width="24" height="24" viewBox="-3 -3 24 24" fill="none" stroke="#CFCFCF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`));
+el('div', { style: 'position:absolute;left:1336px;top:12px;width:12px;height:12px;border:1.5px solid #555;border-radius:3px' }, tbar);
+el('div', { cls: 'tab', style: 'left:1356px;top:11px;font-weight:500' }, tbar, 'Snapping');
+// ---------- build: left panel ----------
+const pL = $('pLeft');
+const lTabP = el('div', { cls: 'tab on', style: 'left:14px;top:8px' }, pL, 'Project');
+const lTabE = el('div', { cls: 'tab', style: 'left:74px;top:8px' }, pL, 'Effects');
+const lLine = el('div', { cls: 'uline', style: 'top:27px' }, pL);
+const projV = el('div', { style: 'position:absolute;inset:0' }, pL);
+el('div', { cls: 'thumb', style: 'left:14px;top:40px;width:120px;height:68px' }, projV, '<img src="media/th_walk.jpg">');
+el('div', { cls: 'abs b7 t13 nowrap', style: 'left:146px;top:46px' }, projV, 'harry-walk.mp4');
+el('div', { cls: 'abs t11 dim nowrap', style: 'left:146px;top:66px' }, projV, '1280 x 720, 24 fps');
+el('div', { cls: 'abs t11 dim nowrap', style: 'left:146px;top:82px' }, projV, '0:00:05:01');
+el('div', { cls: 'field', style: 'left:14px;top:120px;width:332px;height:24px' }, projV,
+  '<svg style="position:absolute;left:7px;top:5px" width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="#777" stroke-width="1.5"><circle cx="5.5" cy="5.5" r="4"/><path d="M8.5 8.5 L12 12"/></svg>');
+const bin = [['th_walk2.jpg', 'harry-walk.mp4'], ['th_cam1.jpg', 'harry-1198.mp4'], ['th_cam2.jpg', 'harry-800.mp4'], ['th_comp.jpg', 'Golden Hour']];
+bin.forEach((b, i) => {
+  const x = 14 + (i % 2) * 172, y = 158 + Math.floor(i / 2) * 124;
+  const th = el('div', { cls: 'thumb', style: `left:${x}px;top:${y}px` }, projV, `<img src="media/${b[0]}">`);
+  if (i === 3) el('div', { style: 'position:absolute;left:8px;top:9px;font-weight:800;font-size:15px;line-height:.95;letter-spacing:-.02em;color:#fff' }, th,
+    'Claude<br>Video <span style="font-family:Instrument Serif;font-style:italic;font-weight:400;color:#D97757">2.0</span>');
+  el('div', { cls: 'tlabel', style: `left:${x}px;top:${y + 96}px` }, projV, b[1]);
+});
+const fxV = el('div', { style: 'position:absolute;inset:0;opacity:0' }, pL);
+el('div', { cls: 'field', style: 'left:14px;top:40px;width:332px;height:26px' }, fxV,
+  '<svg style="position:absolute;left:8px;top:6px" width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="#999" stroke-width="1.5"><circle cx="5.5" cy="5.5" r="4"/><path d="M8.5 8.5 L12 12"/></svg>');
+const fxSearch = el('div', { cls: 'abs t12 b6 nowrap', style: 'left:34px;top:46px;color:#E0E0E0' }, fxV, '');
+const treeItems = [['Animation Presets', 0, 1], ['Titles', 1, 1], ['Lower third', 2, 0], ['Transitions', 1, 1], ['Blur & Sharpen', 0, 1], ['Color Correction', 0, 1], ['Distort', 0, 1], ['Generate', 0, 1], ['Keying', 0, 1]];
+const treeEls = treeItems.map((it, i) => {
+  const e = el('div', { cls: 'tree', style: `left:${16 + it[1] * 16}px;top:${82 + i * 26}px;width:${330 - it[1] * 16}px;border-radius:5px;border:1.5px solid transparent;padding:4px 0 0 24px` }, fxV);
+  e.appendChild(document.createTextNode(it[0]));
+  el('div', { style: `position:absolute;left:6px;top:7px;width:11px;height:9px;border:1.3px solid #777;border-radius:2px;${it[2] ? '' : 'border-color:#999;background:#2a2a2a'}` }, e);
+  return e;
+});
+// ---------- build: viewer panel ----------
+const pV = $('pView');
+el('div', { cls: 'tab on', style: 'left:14px;top:8px' }, pV, 'Composition Golden Hour');
+el('div', { cls: 'uline', style: 'left:14px;top:27px;width:150px;background:#9a9a9a' }, pV);
+el('div', { style: 'position:absolute;left:0;top:30px;width:1010px;height:1px;background:#262626' }, pV);
+el('div', { cls: 'abs t11 b6', style: 'left:16px;top:513px;padding:2px 7px;background:#2a2a2a;border-radius:4px' }, pV, '50%');
+const vTC = el('div', { cls: 'abs t12 b6 nowrap', style: 'left:62px;top:514px' }, pV, '');
+el('div', { cls: 'abs', style: 'left:497px;top:513px' }, pV, '<svg width="16" height="16" viewBox="0 0 16 16"><path d="M4 2.5 L13 8 L4 13.5 Z" fill="#DADADA"/></svg>');
+el('div', { cls: 'abs t11 b6 dim', style: 'left:964px;top:515px' }, pV, 'Full');
+// ---------- build: right panel ----------
+const pR = $('pRight');
+const rTabs = [el('div', { cls: 'tab', style: 'left:16px;top:8px' }, pR, 'Info'), el('div', { cls: 'tab on', style: 'left:56px;top:8px' }, pR, 'Character')];
+const rTabC = el('div', { cls: 'tab', style: 'left:134px;top:8px;padding-left:16px' }, pR, `<span style="position:absolute;left:0;top:1px">${starSvg(6, 1.8)}</span>Claude`);
+const rLine = el('div', { cls: 'uline', style: 'top:27px' }, pR);
+el('div', { style: 'position:absolute;left:0;top:30px;width:374px;height:1px;background:#262626' }, pR);
+const infoV = el('div', { style: 'position:absolute;inset:0' }, pR);
+['Info', 'Audio', 'Preview', 'Tracker', 'Character', 'Paragraph', 'Align'].forEach((n, i) =>
+  el('div', { cls: 'abs t12 b6 nowrap', style: `left:20px;top:${50 + i * 30}px;color:#BDBDBD` }, infoV, `<span style="color:#666;margin-right:10px">›</span>${n}`));
+const aiV = el('div', { style: 'position:absolute;inset:0;opacity:0' }, pR);
+el('div', { style: 'position:absolute;left:16px;top:44px;height:34px' }, aiV, `<div style="position:absolute;left:0;top:2px">${starSvg(14, 3.2)}</div><div style="position:absolute;left:38px;top:2px;font-size:23px;font-weight:700;white-space:nowrap">Claude</div>`);
+const aiBubble = el('div', { cls: 'abs b6 nowrap', style: 'right:16px;top:96px;font-size:13.5px;padding:9px 14px;background:#2E2E2E;border-radius:10px' }, aiV, 'Animate this shot');
+el('div', { cls: 'field', style: 'left:16px;top:866px;width:342px;height:40px;border-radius:10px' }, aiV,
+  `<div style="position:absolute;right:7px;top:7px;width:24px;height:24px;border-radius:50%;background:${CLAY}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M12 17 V7 M8 11 L12 7 L16 11"/></svg></div>`);
+const stepDefs = [
+  ['Title keyframes', '<path d="M3 4 H15 M9 4 V15"/>', 2.0, 4.52],
+  ['Ease the curve', '<path d="M3 15 C 10 15, 8 3, 15 3"/>', 4.55, 6.05],
+  ['Track and pin', '<path d="M9 2 V16 M2 9 H16"/><rect x="5.5" y="5.5" width="7" height="7"/>', 6.55, 9.62],
+  ['Lower third', '<rect x="2.5" y="4" width="13" height="10" rx="1.5"/><path d="M5 10.5 H11"/>', 9.72, 10.75],
+  ['Preview', '<path d="M5 3.5 L14 9 L5 14.5 Z"/>', 11.3, 11.98],
+];
+const steps = stepDefs.map((d, i) => {
+  const e = el('div', { cls: 'step', style: `top:${262 + i * 54}px` }, $('app'));
+  el('div', { cls: 'ico' }, e, `<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#BDBDBD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d[1]}</svg>`);
+  el('div', { cls: 'lbl' }, e, d[0]);
+  const st = el('div', { cls: 'st' }, e, `<svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="7" fill="none" stroke="#3A3A3A" stroke-width="1.5"/><path class="spin" d="M9 2 A7 7 0 0 1 16 9" fill="none" stroke="${CLAY}" stroke-width="2" stroke-linecap="round" opacity="0"/><g class="done" opacity="0"><circle cx="9" cy="9" r="8" fill="${CLAY}"/><path d="M5.3 9.2 L7.8 11.6 L12.8 6.6" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></g></svg>`);
+  return { e, spin: st.querySelector('.spin'), done: st.querySelector('.done'), a: d[2], b: d[3] };
+});
+// ---------- build: timeline ----------
+const pT = $('pTime');
+el('div', { cls: 'tab on', style: 'left:14px;top:8px' }, pT, 'Golden Hour');
+el('div', { cls: 'uline', style: 'left:14px;top:27px;width:72px;background:#9a9a9a' }, pT);
+const tTC = el('div', { cls: 'abs b7 nowrap', style: 'left:14px;top:36px;font-size:21px;letter-spacing:-.01em' }, pT, '');
+const tFR = el('div', { cls: 'abs nowrap dim', style: 'left:14px;top:62px;font-size:9.5px' }, pT, '');
+el('div', { cls: 'field', style: 'left:156px;top:38px;width:120px;height:22px' }, pT,
+  '<svg style="position:absolute;left:7px;top:4px" width="12" height="12" viewBox="0 0 13 13" fill="none" stroke="#777" stroke-width="1.5"><circle cx="5.5" cy="5.5" r="4"/><path d="M8.5 8.5 L12 12"/></svg>');
+const ttIcons = ['<rect x="3" y="3" width="11" height="11" rx="1"/>', '<circle cx="8.5" cy="8.5" r="5.5"/>', '<path d="M3 14 L8.5 3 L14 14"/>', '<path d="M2 15 L7 9 L10 11 L15 3"/>', '<path d="M2 14 C 8 14, 9 3, 15 3"/>'];
+const ttEls = ttIcons.map((p, i) => el('div', { style: `position:absolute;left:${562 + i * 30}px;top:36px;width:24px;height:24px;border-radius:12px;` }, pT,
+  `<svg width="24" height="24" viewBox="-3.5 -3.5 24 24" fill="none" stroke="#BDBDBD" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`));
+[['#', 46], ['Layer Name', 86], ['Mode', 546], ['Parent', 626]].forEach((h) => el('div', { cls: 'abs dim nowrap', style: `left:${h[1]}px;top:76px;font-size:10px` }, pT, h[0]));
+el('div', { style: 'position:absolute;left:0;top:91px;width:1384px;height:1px;background:#262626' }, pT);
+const rulerL = el('div', { style: 'position:absolute;left:0;top:0;width:1384px;height:80px' }, pT);
+el('div', { style: `position:absolute;left:${KX0 - 74 - 10}px;top:56px;width:${KX1 - KX0 + 20}px;height:1px;background:#333` }, rulerL);
+for (let k = 0; k <= 3; k++) {
+  const x = KX0 - 74 + k * PXS;
+  el('div', { cls: 'abs dim nowrap', style: `left:${x + 4}px;top:40px;font-size:10px` }, rulerL, `0${k}s`);
+  el('div', { style: `position:absolute;left:${x}px;top:40px;width:1px;height:16px;background:#3a3a3a` }, rulerL);
+}
+const rulerG = el('div', { style: 'position:absolute;left:0;top:0;width:1384px;height:80px;opacity:0' }, pT);
+['0:00f', '0:06f', '0:12f', '0:18f', '1:00f'].forEach((l, k) => {
+  const x = gx(k * 6) - 74;
+  el('div', { cls: 'abs dim nowrap', style: `left:${x + 4}px;top:40px;font-size:10px` }, rulerG, l);
+  el('div', { style: `position:absolute;left:${x}px;top:40px;width:1px;height:16px;background:#3a3a3a` }, rulerG);
+});
+const cacheBar = el('div', { style: `position:absolute;left:${KX0 - 74}px;top:58px;height:6px;width:0;background:${CLAY};border-radius:2px` }, pT);
+const rowsBox = el('div', { style: 'position:absolute;left:0;top:0;width:1384px;height:366px;overflow:hidden' }, pT);
+const barsBox = el('div', { style: 'position:absolute;left:0;top:0;width:1384px;height:366px' }, rowsBox);
+const defs = [
+  { id: 'lt', main: 1, name: 'Lower third', icon: '□', chip: '--c2', bar: [0.9, 3.5], keys: [0.9, 1.4] },
+  { id: 'co', main: 1, name: 'Callout', icon: '□', chip: '--c5', bar: [0.7, 3.5], keys: [0.7, 1.0] },
+  { id: 'ti', main: 1, name: 'Claude Video 2.0', icon: 'T', chip: '--c4', bar: [0, 3.5] },
+  { id: 'pos', sub: 1, name: 'Position', keys: [F19, 0] },
+  { id: 'sca', sub: 1, name: 'Scale', keys: [F19, 0] },
+  { id: 'opa', sub: 1, name: 'Opacity', keys: [F19, 0] },
+  { id: 'ft', main: 1, name: 'harry-walk.mp4', icon: '▭', chip: '--c1', bar: [0, 3.5] },
+  { id: 'tp', sub: 1, name: 'Track Point 1' },
+  { id: 'gr', main: 1, name: 'Grade', icon: '◐', chip: '--c3', bar: [0, 3.5] },
+];
+const R = {};
+defs.forEach((d) => {
+  const r = el('div', { cls: 'row' }, rowsBox);
+  el('div', { cls: 'bg', style: `background:${d.sub ? 'var(--prop)' : 'var(--row)'}` }, r);
+  if (d.main) {
+    el('div', { cls: 'cell', style: 'left:14px;top:5px' }, r, '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#8a8a8a" stroke-width="1.3"><path d="M1 7 C3.5 3, 10.5 3, 13 7 C10.5 11, 3.5 11, 1 7Z"/><circle cx="7" cy="7" r="2"/></svg>');
+    el('div', { cls: 'chip', style: `left:32px;background:var(${d.chip})` }, r);
+    d.numEl = el('div', { cls: 'cell num', style: 'left:50px' }, r, '');
+    d.tw = el('div', { cls: 'cell num', style: 'left:64px;transform-origin:4px 5px' }, r, '<svg width="8" height="10" viewBox="0 0 8 10"><path d="M1 1 L7 5 L1 9Z" fill="#8a8a8a"/></svg>');
+    el('div', { cls: 'cell dim', style: 'left:78px;font-weight:700' }, r, d.icon);
+    el('div', { cls: 'cell b6', style: 'left:94px;color:#E6E6E6' }, r, d.name);
+    el('div', { cls: 'cell dim', style: 'left:546px' }, r, 'Normal');
+    el('div', { cls: 'cell dim', style: 'left:626px' }, r, 'None');
+  } else {
+    d.sw = el('div', { cls: 'cell', style: 'left:80px;top:5px;color:#777' }, r, '<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7" cy="8" r="5"/><path d="M7 8 L7 5.2 M5.5 1.5 H8.5"/></svg>');
+    el('div', { cls: 'cell b6', style: 'left:102px;color:#CFCFCF' }, r, d.name);
+    d.val = el('div', { cls: 'cell b6', style: 'left:246px;color:#CFCFCF' }, r, '');
+  }
+  const k = el('div', { cls: 'row', style: 'pointer-events:none' }, barsBox);
+  if (d.bar) el('div', { cls: 'bar', style: `left:${KX0 - 74 + d.bar[0] * PXS}px;width:${(d.bar[1] - d.bar[0]) * PXS}px;background:var(${d.chip})` }, k);
+  if (d.keys) d.keyEls = d.keys.map((c) => el('div', { cls: 'key', style: `left:${KX0 - 74 + c * PXS}px` }, k,
+    '<svg width="10" height="10" viewBox="0 0 10 10"><path class="dia" d="M5 0 L10 5 L5 10 L0 5Z" fill="#E6E6E6"/><path class="hg" d="M0 0 H10 L5 5 L10 10 H0 L5 5Z" opacity="0"/></svg>'));
+  if (d.id === 'tp') { d.dots = []; for (let i = 0; i <= 42; i++) d.dots.push(el('div', { style: `position:absolute;left:${KX0 - 74 + i * (2 / 24) * PXS - 2}px;top:11px;width:4px;height:4px;border-radius:50%;background:${i % 6 ? '#CFCFCF' : CLAY}` }, k)); }
+  d.r = r; d.k = k; R[d.id] = d;
+});
+const playhead = el('div', { style: 'position:absolute;top:30px;width:1px;height:336px;background:#EDEDED' }, pT,
+  '<svg style="position:absolute;left:-6px;top:8px" width="13" height="16" viewBox="0 0 13 16"><path d="M0 0 H13 V9 L6.5 15 L0 9Z" fill="#EDEDED"/></svg>');
+// graph editor (drawn over the keyframe area, app coords)
+const graph = sv('g', { opacity: 0 }, $('appSvg'));
+sv('rect', { x: 760, y: 730, width: 690, height: 296, fill: '#141414' }, graph);
+[110, 190, 270, 350, 430].forEach((v) => {
+  sv('line', { x1: 770, x2: 1440, y1: gy(v), y2: gy(v), stroke: '#262626', 'stroke-width': 1 }, graph);
+  const tx = sv('text', { x: 1412, y: gy(v) - 4, fill: '#6E6E6E', 'font-size': 10, 'font-family': 'Switzer', 'font-weight': 600 }, graph); tx.textContent = v;
+});
+for (let f = 0; f <= 24; f += 6) sv('line', { x1: gx(f), x2: gx(f), y1: 740, y2: 1020, stroke: '#202020', 'stroke-width': 1 }, graph);
+const gBefore = sv('line', { x1: gx(0), y1: gy(V0), x2: gx(19), y2: gy(V1), stroke: '#8a8a8a', 'stroke-width': 1, 'stroke-dasharray': '4 4', opacity: 0 }, graph);
+sv('line', { x1: gx(19), x2: 1440, y1: gy(V1), y2: gy(V1), stroke: '#BDBDBD', 'stroke-width': 1.1 }, graph);
+const gCurve = sv('path', { fill: 'none', stroke: '#F2F2F2', 'stroke-width': 1.3, 'stroke-linecap': 'round' }, graph);
+const gH1 = sv('line', { stroke: CLAY, 'stroke-width': 1.1 }, graph), gH2 = sv('line', { stroke: CLAY, 'stroke-width': 1.1 }, graph);
+const gD1 = sv('circle', { r: 4.2, fill: CLAY }, graph), gD2 = sv('circle', { r: 4.2, fill: CLAY }, graph);
+sv('line', { x1: gx(19), x2: gx(19), y1: 724, y2: 1026, stroke: '#EDEDED', 'stroke-width': 1 }, graph);
+[[0, V0], [19, V1]].forEach((k) => sv('rect', { x: gx(k[0]) - 4.5, y: gy(k[1]) - 4.5, width: 9, height: 9, fill: '#fff', stroke: CLAY, 'stroke-width': 1.3 }, graph));
+function tagSvg(parent) { const g = sv('g', { opacity: 0 }, parent); const r = sv('rect', { height: 20, width: 92, rx: 6, fill: '#161616', stroke: CLAY, 'stroke-width': 1.1 }, g);
+  const tx = sv('text', { 'font-size': 10.5, 'font-weight': 700, fill: '#fff', 'font-family': 'Switzer', x: 10, y: 14 }, g); return { g, r, tx }; }
+const tag1 = tagSvg($('appSvg')), tag2 = tagSvg($('appSvg'));
+const ringG = sv('g', {}, $('appSvg'));
+// ---------- build: comp overlays ----------
+const cs = $('compSvg');
+const pathG = sv('g', { opacity: 0 }, cs);
+const pathLine = sv('line', { stroke: 'rgba(255,255,255,.55)', 'stroke-width': 2.5, 'stroke-dasharray': '2 9', 'stroke-linecap': 'round' }, pathG);
+const pathDots = []; for (let i = 0; i <= 19; i++) pathDots.push(sv('circle', { r: 5, fill: '#fff' }, pathG));
+const pathK = [0, 1].map(() => sv('rect', { width: 16, height: 16, fill: 'none', stroke: CLAY, 'stroke-width': 3 }, pathG));
+const tbox = sv('g', { opacity: 0 }, cs);
+const tboxR = sv('rect', { fill: 'none', stroke: CLAY, 'stroke-width': 3 }, tbox);
+const tboxH = []; for (let i = 0; i < 8; i++) tboxH.push(sv('rect', { width: 14, height: 14, fill: '#fff', stroke: CLAY, 'stroke-width': 2 }, tbox));
+const caret = sv('rect', { width: 6, fill: CLAY, opacity: 0 }, cs);
+const trailG = sv('g', {}, cs); const trail = []; for (let i = 0; i < 14; i++) trail.push(sv('circle', { r: 7, fill: CLAY }, trailG));
+const trk = sv('g', { opacity: 0 }, cs);
+sv('rect', { x: -75, y: -75, width: 150, height: 150, fill: 'none', stroke: '#fff', 'stroke-width': 3, 'stroke-dasharray': '12 9' }, trk);
+sv('rect', { x: -34, y: -34, width: 68, height: 68, fill: 'none', stroke: CLAY, 'stroke-width': 5 }, trk);
+sv('path', { d: 'M-16 0 H16 M0 -16 V16', stroke: '#fff', 'stroke-width': 3 }, trk);
+const callLine = sv('path', { fill: 'none', stroke: '#fff', 'stroke-width': 3.5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', opacity: 0 }, cs);
+const tpRing = sv('circle', { r: 11, fill: 'rgba(255,255,255,.15)', stroke: '#fff', 'stroke-width': 3.5, opacity: 0 }, cs);
+const pin = sv('g', { opacity: 0 }, cs); sv('path', { d: starPath(40), stroke: CLAY, 'stroke-width': 9, 'stroke-linecap': 'round' }, pin);
+const dropZ = sv('rect', { x: 84, y: 854, width: 454, height: 130, rx: 8, fill: 'rgba(217,119,87,.08)', stroke: '#fff', 'stroke-width': 3, 'stroke-dasharray': '14 10', opacity: 0 }, cs);
+// title spans (one per character so it can be typed)
+const titleEl = $('title');
+const TCH = [];
+const addCh = (c, parent) => { const s = el('span', {}, parent); s.textContent = c === ' ' ? ' ' : c; TCH.push(s); };
+'Claude'.split('').forEach((c) => addCh(c, titleEl));
+titleEl.appendChild(document.createElement('br'));
+'Video '.split('').forEach((c) => addCh(c, titleEl));
+const serEl = el('span', { cls: 'ser' }, titleEl);
+'2.0'.split('').forEach((c) => addCh(c, serEl));
+// cursor
+const cur = $('cursor');
+cur.appendChild(frag(`<svg width="22" height="28" viewBox="0 0 22 28" style="position:absolute;left:-2px;top:-2px;overflow:visible"><path d="M2 2 L2 22 L7.3 17.3 L11 25.5 L14.4 24 L10.8 16 L17.5 16 Z" fill="#fff" stroke="#111" stroke-width="1.6" stroke-linejoin="round"/></svg>
+  <div class="pill" style="left:16px;top:24px;height:22px;padding:0 9px 0 6px;font-size:11px;gap:5px">${starSvg(6, 1.9)}<span>Claude</span></div>`));
+const ghost = el('div', { cls: 'abs t12 b6 nowrap', style: 'padding:5px 10px;background:#2a2a2a;border:1.5px solid ' + CLAY + ';border-radius:6px;opacity:0' }, $('app'), 'Lower third');
+// footage frames (preloaded, drawn from the comp clock so the picture never lies about the time)
+const pre = $('pre'); const IM = {};
+for (let f = 94; f <= 198; f++) IM[f] = el('img', { src: `media/walk/i${String(f).padStart(3, '0')}.jpg` }, pre);
+const ctx = $('foot').getContext('2d');
+let lastFrameKey = '';
+function drawFoot(f) {
+  const im = IM[f];
+  if (im && !(im.complete && im.naturalWidth)) { im.addEventListener('load', () => { if (lastT !== null) renderFn(lastT); }, { once: true }); return; }
+  if (!im || lastFrameKey === f) return;
+  lastFrameKey = f;
+  ctx.drawImage(im, 0, 0, 1280, 720, 0, 0, 1920 * FS, 1080 * FS);
+}
+// ---------- timing tables ----------
+const PEEL = 12.05;
+// camera keys: arrival t, move dur, cx, cy, s, rx, ry, ease
+const CAM = [
+  [0, 0, 960, 540, 0.80, 16, -13],
+  [0.95, 0.95, 960, 540, 1.0, 0, 0, 'expo.out'],
+  [2.12, 0.45, 700, 360, 1.45, 0, 0],
+  [2.95, 0.45, 560, 700, 1.5, 0, 0],
+  [3.72, 0.42, 860, 600, 1.3, 0, 0],
+  [5.0, 0.45, 1120, 860, 2.7, 0, 0],
+  [5.85, 0.6, 1105, 868, 2.72, 0, 0, 'power1.inOut'],
+  [6.38, 0.42, 953, 395, 1.75, 0, 0],
+  [7.35, 0.45, 1075, 385, 2.5, 0, 0],
+  [9.45, 2.0, 1110, 420, 2.45, 0, 0, 'power1.inOut'],
+  [10.3, 0.75, 700, 390, 1.45, 0, 0, 'sine.inOut'],
+  [10.75, 0.4, 800, 420, 1.5, 0, 0],
+  [11.18, 0.45, 960, 540, 1.0, 0, 0],
+  [12.85, 0.55, 953, 381.125, 1920 / 836 * 1.002, 0, 0, 'power3.in'],
+];
+function camAt(t) {
+  const last = CAM.length - 1;
+  const hold = (i, tt) => { const k = CAM[i]; const dt = Math.max(0, tt - k[0]); const g = (i === 0 || i === last) ? 0 : 0.012;
+    return { cx: k[2], cy: k[3], s: k[4] * (1 + g * dt), rx: k[5], ry: k[6] }; };
+  let pose = hold(0, t);
+  for (let i = 1; i < CAM.length; i++) {
+    const k = CAM[i], st = k[0] - k[1];
+    if (t < st) break;
+    const from = hold(i - 1, st), p = ease(k[7] || 'power3.inOut', (t - st) / k[1]);
+    pose = t < k[0] ? { cx: lerp(from.cx, k[2], p), cy: lerp(from.cy, k[3], p), s: lerp(from.s, k[4], p), rx: lerp(from.rx, k[5], p), ry: lerp(from.ry, k[6], p) } : hold(i, t);
+  }
+  if (t > 12.85) pose.s *= 1 + 0.05 * ease('power1.inOut', (t - 12.85) / 3.15);
+  return pose;
+}
+// callout box position (comp coords) from the track point
+function callPos(tp) { return { x: Math.min(tp.x + 110, 1920 - 90 - 300), y: tp.y - 160 }; }
+const tpCall = () => callPos(tpAt(2.2));
+// cursor keys: arrival t, move dur, x, y  (x/y may be functions)
+const CUR = [
+  [1.25, 0, 1690, 610], [1.7, 0.45, 1660, 568],
+  [2.08, 0.36, 332, 88], [2.2, 0.12, 613, 233],
+  [2.86, 0.5, 152, 799], [3.03, 0.14, 152, 825], [3.18, 0.13, 152, 851],
+  [3.28, 0.1, 830, 711], [3.4, 0.11, 330, 799], [3.7, 0.25, 953, 636],
+  [4.52, 0.4, 760, 714], [4.97, 0.35, gx(H1a.x), gy(H1a.y)],
+  [5.46, 0, 'h1', 'h1'],
+  [5.6, 0.14, gx(H2a.x), gy(H2a.y)],
+  [6.0, 0, 'h2', 'h2'],
+  [6.1, 0.1, 953, 636],
+  [6.55, 0.4, 1188, 538], [7.22, 0.6, () => c2a(tpAt(0)).x + 4, () => c2a(tpAt(0)).y + 4],
+  [7.72, 0.4, 1214, 568],
+  [9.52, 0.32, () => c2a(tpCall()).x + 70 * CS, () => c2a(tpCall()).y + 40 * CS],
+  [9.88, 0.3, 150, 124], [9.99, 0.1, 200, 166], [10.29, 0.22, 182, 316],
+  [10.69, 0.36, 678, 551], [11.26, 0.4, 953, 636], [11.75, 0.42, 1150, 712], [12.1, 0.3, 1150, 712],
+];
+function keyPos(k) {
+  if (k[2] === 'h1') { const H = handles(5.46); return { x: gx(H.h1.x), y: gy(H.h1.y) }; }
+  if (k[2] === 'h2') { const H = handles(6.0); return { x: gx(H.h2.x), y: gy(H.h2.y) }; }
+  return { x: typeof k[2] === 'function' ? k[2]() : k[2], y: typeof k[3] === 'function' ? k[3]() : k[3] };
+}
+function curAt(t) {
+  if (t >= 5.0 && t < 5.46) { const H = handles(t); return { x: gx(H.h1.x), y: gy(H.h1.y) }; }
+  if (t >= 5.62 && t < 6.0) { const H = handles(t); return { x: gx(H.h2.x), y: gy(H.h2.y) }; }
+  let p = keyPos(CUR[0]);
+  for (let i = 1; i < CUR.length; i++) {
+    const k = CUR[i], st = k[0] - k[1];
+    if (t < st) break;
+    const from = keyPos(CUR[i - 1]), to = keyPos(k);
+    const pp = k[1] ? ease('power3.inOut', (t - st) / k[1]) : 1;
+    p = { x: lerp(from.x, to.x, pp), y: lerp(from.y, to.y, pp) };
+  }
+  return p;
+}
+const CLICKS = [2.1, 2.22, 2.88, 3.04, 3.2, 3.3, 3.42, 3.72, 4.55, 5.0, 5.62, 6.12, 7.25, 9.55, 9.9, 10.0, 10.31, 10.71, 11.3];
+// focus ring targets
+const RECTS = { R: [1472, 112, 374, 920], V: [448, 112, 1010, 540], T: [74, 666, 1384, 366], L: [74, 112, 360, 540] };
+const FOC = [[0.9, 'R'], [1.95, 'V'], [2.6, 'T'], [3.6, 'V'], [4.45, 'T'], [6.0, 'V'], [9.75, 'L'], [10.3, 'V'], [10.85, 'R'], [11.3, 'T']];
+const PANELS = [['titlebar', 'top', 'X', 1], ['toolbar', 'top', 'X', 1], ['pLeft', 'left', 'Y', -1], ['pRight', 'right', 'Y', 1], ['pTime', 'bottom', 'X', -1]];
+// ---------- render ----------
+window.__timelines = window.__timelines || {};
+let lastT = null;
+const renderFn = function render(t) {
+  lastT = t;
+  const C = compC(t);
+  const H = handles(t);
+  const keyed = t >= 3.45;
+  // camera
+  const cp = camAt(t);
+  $('cam').style.transform = `translate(960px,540px) scale(${cp.s}) rotateX(${cp.rx}deg) rotateY(${cp.ry}deg) translate(${-cp.cx}px,${-cp.cy}px)`;
+  // panels: land in, then peel away on their outer hinges
+  PANELS.forEach((p, i) => {
+    const e = $(p[0]);
+    const inP = seg(t, -0.15 + i * 0.07, 0.7, 'expo.out');
+    const ps = PEEL + i * 0.03, pk = seg(t, ps, 0.45, 'power2.in'), bl = seg(t, ps, 0.4, 'power3.in') * 14;
+    const fade = 1 - seg(t, ps + 0.3, 0.12, 'none');
+    e.style.transformOrigin = p[1] === 'top' ? '50% 0' : p[1] === 'bottom' ? '50% 100%' : p[1] === 'left' ? '0 50%' : '100% 50%';
+    e.style.transform = `translateY(${(1 - inP) * 26}px) translateZ(${pk * 950}px) rotate${p[2]}(${p[3] * pk * 60}deg)`;
+    e.style.filter = bl > 0.05 ? `blur(${bl}px)` : 'none';
+    e.style.opacity = inP * fade;
+  });
+  const winF = 1 - seg(t, PEEL + 0.05, 0.35, 'power2.in');
+  $('win').style.opacity = (0.55 + 0.45 * seg(t, 0, 0.4, 'power2.out')) * winF;
+  const viewIn = seg(t, -0.08, 0.7, 'expo.out');
+  const viewF = 1 - seg(t, PEEL + 0.2, 0.3, 'power2.in');
+  $('pView').style.opacity = viewIn * viewF; $('pView').style.transform = `translateY(${(1 - viewIn) * 26}px)`;
+  $('comp').style.transform = `translateY(${(1 - viewIn) * 26}px) scale(${CS})`;
+  $('comp').style.opacity = viewIn;
+  $('deskDim').style.opacity = 0.65 * seg(t, PEEL, 0.6, 'power2.inOut');
+  const rIn = seg(t, -0.15 + 3 * 0.07, 0.7, 'expo.out'), rPs = PEEL + 3 * 0.03;
+  const rPk = seg(t, rPs, 0.45, 'power2.in'), rBl = seg(t, rPs, 0.4, 'power3.in') * 14, rFade = 1 - seg(t, rPs + 0.3, 0.12, 'none');
+  // workspace tabs + tools
+  const ws = t < 6.6 ? 0 : t < 9.7 ? 1 : t < 10.95 ? 0 : 2;
+  wsTabs.forEach((e, i) => { e.className = 'tab' + (i === ws ? ' on' : ''); });
+  wsLine.style.left = (838 + ws * 62) + 'px'; wsLine.style.width = [50, 34, 44][ws] + 'px';
+  toolEls.forEach((e, i) => { e.style.background = (i === 8 && t >= 2.1 && t < 4.5) ? CLAY : 'transparent'; });
+  ttEls.forEach((e, i) => { e.style.background = (i === 4 && t >= 4.55 && t < 6.05) ? 'rgba(217,119,87,.35)' : 'transparent'; });
+  // left panel: project -> effects
+  const fx = seg(t, 9.9, 0.2, 'power2.out');
+  projV.style.opacity = 1 - fx; fxV.style.opacity = fx;
+  lTabP.className = 'tab' + (fx < 0.5 ? ' on' : ''); lTabE.className = 'tab' + (fx >= 0.5 ? ' on' : '');
+  lLine.style.left = (fx < 0.5 ? 14 : 74) + 'px'; lLine.style.width = (fx < 0.5 ? 44 : 42) + 'px';
+  const nTyped = clamp(Math.floor((t - 10.02) / 0.035) + 1, 0, 5);
+  fxSearch.textContent = 'Lower'.slice(0, nTyped);
+  treeEls.forEach((e, i) => {
+    e.style.opacity = t < 10.02 ? 1 : (i <= 2 ? 1 : 0.45);
+    const hi = i === 2 && t >= 10.18;
+    e.style.borderColor = hi ? CLAY : 'transparent';
+    e.style.background = hi ? 'rgba(217,119,87,.12)' : 'transparent';
+  });
+  // right panel: info -> Claude
+  const ai = seg(t, 0.88, 0.25, 'power2.out');
+  infoV.style.opacity = 1 - ai; aiV.style.opacity = ai;
+  rTabs[1].className = 'tab' + (ai < 0.5 ? ' on' : ''); rTabC.className = 'tab' + (ai >= 0.5 ? ' on' : '');
+  rTabC.style.opacity = seg(t, 0.8, 0.3, 'power2.out');
+  rLine.style.left = (ai < 0.5 ? 56 : 134) + 'px'; rLine.style.width = (ai < 0.5 ? 58 : 64) + 'px';
+  const bub = seg(t, 1.12, 0.4, 'back.out(2.2)');
+  aiBubble.style.opacity = clamp(bub * 2, 0, 1); aiBubble.style.transform = `scale(${0.85 + 0.15 * bub})`; aiBubble.style.transformOrigin = '100% 50%';
+  steps.forEach((s, i) => {
+    const sin = seg(t, 1.3 + i * 0.08, 0.6, 'expo.out');
+    s.e.style.opacity = sin * rIn * rFade;
+    s.e.style.transformOrigin = '358px 50%';
+    s.e.style.transform = `translateX(${(1 - sin) * 30}px) translateZ(${rPk * 950}px) rotateY(${rPk * 60}deg)`;
+    s.e.style.filter = rBl > 0.05 ? `blur(${rBl}px)` : 'none';
+    const act = t >= s.a && t < s.b, done = t >= s.b;
+    s.e.style.borderColor = act ? CLAY : 'transparent';
+    s.e.style.background = act ? '#261E1B' : '#1A1A1A';
+    s.spin.setAttribute('opacity', act ? 1 : 0);
+    s.spin.setAttribute('transform', `rotate(${(t * 400) % 360} 9 9)`);
+    const dp = seg(t, s.b, 0.4, 'back.out(2.2)');
+    s.done.setAttribute('opacity', done ? 1 : 0);
+    s.done.setAttribute('transform', `translate(9 9) scale(${done ? dp : 0}) translate(-9 -9)`);
+  });
+  // focus ring
+  let fr = RECTS[FOC[0][1]];
+  for (let i = 1; i < FOC.length; i++) { const st = FOC[i][0] - 0.3; if (t < st) break; const p = ease('power3.inOut', (t - st) / 0.3), a = RECTS[FOC[i - 1][1]], b = RECTS[FOC[i][1]];
+    fr = [0, 1, 2, 3].map((j) => lerp(a[j], b[j], p)); }
+  const fo = $('focus'); fo.style.left = (fr[0] - 2) + 'px'; fo.style.top = (fr[1] - 2) + 'px'; fo.style.width = (fr[2] + 4) + 'px'; fo.style.height = (fr[3] + 4) + 'px';
+  fo.style.opacity = seg(t, 0.9, 0.25, 'power2.out') * (1 - seg(t, PEEL, 0.2, 'none')) * 0.95;
+  // timecodes
+  vTC.textContent = fmtTC(C); tTC.textContent = fmtTC(C);
+  tFR.textContent = String(Math.floor(C * 24 + 1e-6)).padStart(5, '0') + ' (24.00 fps)';
+  // timeline rows
+  const gMode = seg(t, 4.58, 0.15, 'power2.out') - seg(t, 6.0, 0.15, 'power2.out');
+  const w = {
+    lt: seg(t, 10.72, 0.35, 'expo.out'), co: seg(t, 9.6, 0.35, 'expo.out'), ti: seg(t, 2.25, 0.35, 'expo.out'),
+    pos: seg(t, 2.62, 0.3, 'expo.out') - seg(t, 10.75, 0.3, 'power2.inOut'),
+    ft: 1, tp: seg(t, 7.3, 0.3, 'expo.out'), gr: 1,
+  };
+  w.sca = w.pos; w.opa = w.pos;
+  let y = ROW0 - 666, num = 1;
+  defs.forEach((d) => {
+    const ww = clamp(w[d.id], 0, 1);
+    d.r.style.top = y + 'px'; d.k.style.top = y + 'px';
+    d.r.style.opacity = ww; d.r.style.transform = `translateX(${(1 - ww) * -30}px)`;
+    d.k.style.opacity = ww * (1 - gMode);
+    if (d.main && ww > 0.5) d.numEl.textContent = num++;
+    y += RH * ww;
+  });
+  R.ti.tw.style.transform = `rotate(${90 * clamp(w.pos, 0, 1)}deg)`;
+  R.ft.tw.style.transform = `rotate(${90 * clamp(w.tp, 0, 1)}deg)`;
+  const P = keyed ? valAt(C * 24, H) : V1;
+  const e = (P - V0) / (V1 - V0);
+  [['pos', 2.88, 3.45], ['sca', 3.04, 3.5], ['opa', 3.2, 3.55]].forEach(([id, ta, tb2], i) => {
+    const d = R[id], on = t >= ta;
+    d.sw.style.color = on ? CLAY : '#777';
+    const vals = [`${P.toFixed(1)}, 300.0`, `${(87.1 + 12.9 * e).toFixed(1)}, ${(87.1 + 12.9 * e).toFixed(1)}%`, `${Math.round(100 * e)}%`];
+    d.val.textContent = vals[i]; d.val.style.color = on ? CLAY : '#CFCFCF';
+    d.keyEls.forEach((k, j) => {
+      const tt = j === 0 ? ta : tb2, pp = seg(t, tt, 0.4, 'back.out(2.2)');
+      k.style.opacity = t >= tt ? 1 : 0; k.style.transform = `scale(${t >= tt ? pp : 0})`;
+      const sel = (j === 0 && t < tb2) || (j === 1 && t < 4.6);
+      const hg = t >= 6.0;
+      k.querySelector('.dia').setAttribute('fill', sel ? CLAY : '#E6E6E6'); k.querySelector('.dia').setAttribute('opacity', hg ? 0 : 1);
+      k.querySelector('.hg').setAttribute('fill', '#E6E6E6'); k.querySelector('.hg').setAttribute('opacity', hg ? 1 : 0);
+    });
+  });
+  const tracked = t < 7.45 ? 0 : t < 9.3 ? Math.min(2.2, t - 7.45) : lerp(1.85, 3.5, seg(t, 9.3, 0.3, 'power1.inOut'));
+  R.tp.dots.forEach((dd, i) => { dd.style.opacity = (i * 2 / 24 <= tracked + 1e-6 && t >= 7.45) ? 1 : 0; });
+  const tp = tpAt(C);
+  R.tp.val.textContent = `${tp.x.toFixed(1)}, ${tp.y.toFixed(1)}`;
+  R.tp.sw.style.color = CLAY;
+  rulerL.style.opacity = 1 - gMode; rulerG.style.opacity = gMode;
+  playhead.style.left = (KX0 - 74 + C * PXS) + 'px'; playhead.style.opacity = 1 - gMode;
+  cacheBar.style.width = ((KX1 - KX0) * seg(t, 11.32, 0.66, 'none')) + 'px';
+  // graph editor
+  graph.setAttribute('opacity', gMode);
+  gBefore.setAttribute('opacity', seg(t, 5.0, 0.2, 'none') * 0.9);
+  let dpath = ''; for (let i = 0; i <= 48; i++) { const s = i / 48; dpath += (i ? 'L' : 'M') + gx(bez(0, H.h1.x, H.h2.x, 19, s)).toFixed(1) + ' ' + gy(bez(V0, H.h1.y, H.h2.y, V1, s)).toFixed(1); }
+  gCurve.setAttribute('d', dpath);
+  gH1.setAttribute('x1', gx(0)); gH1.setAttribute('y1', gy(V0)); gH1.setAttribute('x2', gx(H.h1.x)); gH1.setAttribute('y2', gy(H.h1.y));
+  gH2.setAttribute('x1', gx(19)); gH2.setAttribute('y1', gy(V1)); gH2.setAttribute('x2', gx(H.h2.x)); gH2.setAttribute('y2', gy(H.h2.y));
+  gD1.setAttribute('cx', gx(H.h1.x)); gD1.setAttribute('cy', gy(H.h1.y)); gD2.setAttribute('cx', gx(H.h2.x)); gD2.setAttribute('cy', gy(H.h2.y));
+  const setTag = (tg, hx, hy, txt, o) => { tg.tx.textContent = txt; tg.g.setAttribute('transform', `translate(${hx} ${hy})`); tg.g.setAttribute('opacity', o * gMode); };
+  setTag(tag1, gx(H.h1.x) + 14, gy(H.h1.y) - 32, `Influence ${Math.round(100 * H.h1.x / 19)}%`, seg(t, 4.97, 0.15, 'none') * (1 - seg(t, 5.9, 0.12, 'none')));
+  setTag(tag2, gx(H.h2.x) + 14, gy(H.h2.y) - 32, `Influence ${Math.round(100 * (19 - H.h2.x) / 19)}%`, seg(t, 5.6, 0.15, 'none') * (1 - seg(t, 5.9, 0.12, 'none')));
+  // comp: footage
+  drawFoot(iFrame(C));
+  // comp: title (typed, then keyed on the one curve)
+  const nT = t < 2.24 ? 0 : clamp(Math.floor((t - 2.24) / 0.035) + 1, 0, TCH.length);
+  TCH.forEach((s, i) => { s.style.opacity = i < nT ? 1 : 0; });
+  const tw = titleEl.offsetWidth, th = titleEl.offsetHeight, tcx = 96 + tw / 2, tcy = 130 + th / 2;
+  const tsc = (87.1 + 12.9 * e) / 100, tO = clamp(e, 0, 1);
+  titleEl.style.transform = `translateX(${P - V1}px) scale(${tsc})`;
+  titleEl.style.opacity = t < 2.24 ? 0 : tO;
+  if (nT > 0 && nT < TCH.length) {
+    const s = TCH[nT - 1];
+    let ox = 96 + s.offsetLeft + s.offsetWidth, oy = 130 + s.offsetTop;
+    if (s.parentNode === serEl) { ox += serEl.offsetLeft; oy += serEl.offsetTop; }
+    caret.setAttribute('x', ox + 6); caret.setAttribute('y', oy + 14); caret.setAttribute('height', 118); caret.setAttribute('opacity', 1);
+  } else caret.setAttribute('opacity', t >= 2.2 && t < 2.24 ? 1 : 0);
+  const selO = (t >= 2.85 && t < 4.6) || (t >= 6.1 && t < 6.95) ? 1 : 0;
+  tbox.setAttribute('opacity', selO * tO);
+  const bw = tw * tsc + 30, bh = th * tsc + 20, bx = tcx + (P - V1) - bw / 2, by = tcy - bh / 2;
+  tboxR.setAttribute('x', bx); tboxR.setAttribute('y', by); tboxR.setAttribute('width', bw); tboxR.setAttribute('height', bh);
+  [[0, 0], [.5, 0], [1, 0], [1, .5], [1, 1], [.5, 1], [0, 1], [0, .5]].forEach((q, i) => { tboxH[i].setAttribute('x', bx + q[0] * bw - 7); tboxH[i].setAttribute('y', by + q[1] * bh - 7); });
+  const pathO = keyed && ((t >= 3.45 && t < 4.6) || (t >= 6.05 && t < 6.95)) ? 1 : 0;
+  pathG.setAttribute('opacity', pathO);
+  const px0 = tcx + V0 - V1, px1 = tcx;
+  pathLine.setAttribute('x1', px0); pathLine.setAttribute('x2', px1); pathLine.setAttribute('y1', tcy); pathLine.setAttribute('y2', tcy);
+  pathDots.forEach((dd, i) => { dd.setAttribute('cx', tcx + valAt(i, H) - V1); dd.setAttribute('cy', tcy); });
+  pathK[0].setAttribute('x', px0 - 8); pathK[0].setAttribute('y', tcy - 8); pathK[1].setAttribute('x', px1 - 8); pathK[1].setAttribute('y', tcy - 8);
+  // comp: pin, tracker, callout
+  const appPhase = t < PEEL;
+  if (t >= 6.6) {
+    const pinS = seg(t, 6.6, 0.4, 'back.out(2.2)');
+    const cu = curAt(t), cc = { x: (cu.x - COMP.x) / CS + 70, y: (cu.y - COMP.y) / CS - 70 };
+    const land = seg(t, 7.25, 0.35, 'power3.inOut');
+    pin.setAttribute('transform', `translate(${lerp(cc.x, tp.x - 8, land)} ${lerp(cc.y, tp.y - 52, land)}) rotate(${t * 18}) scale(${pinS})`);
+    pin.setAttribute('opacity', 1);
+  } else pin.setAttribute('opacity', 0);
+  const trkP = seg(t, 7.25, 0.3, 'back.out(2)');
+  const trkO = t >= 7.25 && appPhase ? 1 - seg(t, PEEL - 0.05, 0.2, 'none') : 0;
+  trk.setAttribute('opacity', trkO); trk.setAttribute('transform', `translate(${tp.x} ${tp.y}) scale(${trkP})`);
+  const tagEl = $('trkTag'); tagEl.style.opacity = trkO * clamp(trkP, 0, 1); tagEl.style.left = tp.x + 'px'; tagEl.style.top = (tp.y + 88) + 'px';
+  const trailO = seg(t, 7.45, 0.2, 'none') * (1 - seg(t, 9.6, 0.3, 'none'));
+  trail.forEach((c, i) => { const cc = C - (i + 1) * 2 / 24; if (cc < 0 || trailO <= 0) { c.setAttribute('opacity', 0); return; }
+    const q = tpAt(cc); c.setAttribute('cx', q.x); c.setAttribute('cy', q.y); c.setAttribute('opacity', trailO * (1 - i / 14) * 0.9); });
+  tpRing.setAttribute('cx', tp.x); tpRing.setAttribute('cy', tp.y); tpRing.setAttribute('opacity', t >= 7.3 ? 1 : 0);
+  const cA = seg(t, 9.55, 0.4, 'back.out(2.2)');
+  const cLine = t >= 9.55 ? seg(C, 0.72, 0.25, 'power2.out') * seg(t, 9.55, 0.25, 'power2.out') : 0;
+  const cBox = t >= 9.55 ? (appPhase ? cA : S.ease('back.out(2.2)')(clamp((C - 0.92) / 0.4, 0, 1))) : 0;
+  const cpos = callPos(tp);
+  const ex = cpos.x, ey = cpos.y + 43, mx = tp.x + 34, my = ey;
+  const segLen = Math.hypot(mx - tp.x, my - tp.y) + (ex - mx);
+  callLine.setAttribute('d', `M${tp.x} ${tp.y} L${mx} ${my} L${ex} ${ey}`);
+  callLine.setAttribute('stroke-dasharray', `${segLen} ${segLen}`); callLine.setAttribute('stroke-dashoffset', segLen * (1 - cLine));
+  callLine.setAttribute('opacity', cLine > 0 ? 1 : 0);
+  const cb = $('callBox'); cb.style.left = cpos.x + 'px'; cb.style.top = cpos.y + 'px';
+  cb.style.opacity = clamp(cBox * 1.5, 0, 1); cb.style.transform = `scale(${0.6 + 0.4 * cBox})`;
+  const lo = $('lower');
+  let lw = 0;
+  if (t >= 10.71) lw = appPhase ? seg(t, 10.71, 0.5, 'expo.out') : seg(C, 1.0, 0.55, 'expo.out');
+  lo.style.width = (440 * lw) + 'px'; lo.style.opacity = lw > 0 ? 1 : 0;
+  $('lowerTxt').style.transform = `translateX(${(1 - lw) * -40}px)`;
+  dropZ.setAttribute('opacity', t >= 10.3 && t < 10.72 ? seg(t, 10.3, 0.15, 'none') : 0);
+  // cursor, ghost chip, click rings
+  const cu = curAt(t);
+  const curO = seg(t, 1.25, 0.2, 'none') * (1 - seg(t, PEEL - 0.05, 0.15, 'none'));
+  const csz = 1 / Math.sqrt(cp.s);
+  cur.style.transform = `translate(${cu.x}px,${cu.y}px) scale(${csz})`; cur.style.opacity = curO;
+  ghost.style.opacity = t >= 10.31 && t < 10.71 ? 0.95 : 0; ghost.style.left = (cu.x + 6) + 'px'; ghost.style.top = (cu.y - 30) + 'px';
+  while (ringG.childNodes.length < CLICKS.length) sv('circle', { fill: 'none', stroke: CLAY }, ringG);
+  CLICKS.forEach((ct, i) => {
+    const c = ringG.childNodes[i], p = (t - ct) / 0.45;
+    if (p < 0 || p > 1) { c.setAttribute('opacity', 0); return; }
+    const at = curAt(ct);
+    c.setAttribute('cx', at.x); c.setAttribute('cy', at.y);
+    c.setAttribute('r', (4 + 22 * ease('power2.out', p)) * csz); c.setAttribute('stroke-width', 2.4 * csz);
+    c.setAttribute('opacity', 0.95 * (1 - p));
+  });
+  // clay flash on the beat as the shot lands
+  $('flash').style.opacity = 0.4 * seg(t, 12.8, 0.05, 'none') * (1 - seg(t, 12.85, 0.35, 'power2.out'));
+};
+window.__timelines["main"] = S.play(renderFn, { loop: false });
+})();
+</script>
+</body>
+</html>
