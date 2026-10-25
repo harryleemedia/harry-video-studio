@@ -1,9 +1,5 @@
 # Harry 的视频工作室 1.0（基于 Claude Video 的中文版）
 
-> 作者：**Harry Lee**（[@harryleeai](https://www.instagram.com/harryleeai/)）。
-> 这是 Harry 的个人版本：全部中文化，风格画廊里出现的人物都换成了 Harry 本人，新增 8 个「带素材」参考作品和 Harry 的默认素材。
-> 基于 [ItsssssJack/claude-video-2](https://github.com/ItsssssJack/claude-video-2)（Claude Video，MIT 许可证），感谢原作者。
-
 一个免费的 Claude Code 技能，做出来的动态图形像专业工作室出品。
 
 - **选一个风格**：风格画廊里有 21 种风格，每一种都以真实视频播放。
